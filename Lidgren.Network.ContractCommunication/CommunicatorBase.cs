@@ -73,6 +73,7 @@ namespace Lidgren.Network.ContractCommunication
             return callbackFilters;
         }
         public void Call(Action method, NetConnection connection = null) => CreateAndSendCall(method.Method, null, connection);
+        public void Call(Action<NetConnection> method, NetConnection connection = null) => CreateAndSendCall(method.Method, null, connection);
         public void Call<T1>(Action<T1> method, T1 arg1, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] { arg1 }, connection);
         public void Call<T1, T2>(Action<T1, T2> method, T1 arg1, T2 arg2, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] { arg1, arg2 }, connection);
         public void Call<T1, T2, T3>(Action<T1, T2, T3> method, T1 arg1, T2 arg2, T3 arg3, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] { arg1, arg2, arg3 }, connection);
