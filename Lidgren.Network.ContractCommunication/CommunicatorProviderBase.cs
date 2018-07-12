@@ -79,12 +79,15 @@ namespace Lidgren.Network.ContractCommunication
 
             while (AuthenticationResults.Count > 0)
             {
+                var result = AuthenticationResults[0];
                 if (AuthenticationResults[0].Success)
                 {
+                    result.Connection.Approve();
                     OnAuthenticationApproved(AuthenticationResults[0]);
                 }
                 else
                 {
+                    result.Connection.Deny();
                     OnAuthenticationDenied(AuthenticationResults[0]);
                 }
                 AuthenticationResults.Remove(AuthenticationResults[0]);
