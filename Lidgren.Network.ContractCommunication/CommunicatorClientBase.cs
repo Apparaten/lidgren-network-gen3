@@ -26,7 +26,7 @@ namespace Lidgren.Network.ContractCommunication
             msg.Write(password);
             NetConnector.Connect(_host, _port, msg);
         }
-        public override void Tick()
+        public override void Tick(int interval)
         {
             NetIncomingMessage msg;
             while ((msg = NetConnector.ReadMessage()) != null)
@@ -69,6 +69,8 @@ namespace Lidgren.Network.ContractCommunication
                 }
                 NetConnector.Recycle(msg);
             }
+            RunTasks();
+            Task.Delay(interval).Wait();
         }
     }
 }

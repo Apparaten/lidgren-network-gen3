@@ -33,7 +33,7 @@ namespace Lidgren.Network.ContractCommunication
             NetConnector.Start();
         }
 
-        public override void Tick()
+        public override void Tick(int interval)
         {
             NetIncomingMessage msg;
             while ((msg = NetConnector.ReadMessage()) != null)
@@ -50,7 +50,7 @@ namespace Lidgren.Network.ContractCommunication
                     case NetIncomingMessageType.StatusChanged:
                         var change = (NetConnectionStatus)msg.ReadByte();
                         OnConnectionStatusChanged?.Invoke(change);
-                        Console.WriteLine(msg.ReadString());
+                        Console.WriteLine("Status change for connection: "+msg.SenderConnection+"\n\t"+msg.ReadString());
                         break;
                     case NetIncomingMessageType.UnconnectedData:
                         break;
@@ -92,6 +92,8 @@ namespace Lidgren.Network.ContractCommunication
                 }
                 AuthenticationResults.Remove(AuthenticationResults[0]);
             }
+            RunTasks();
+            Task.Delay(interval).Wait();
         }
 
 
@@ -99,13 +101,14 @@ namespace Lidgren.Network.ContractCommunication
         protected virtual void OnConnectionApproval(NetIncomingMessage msg)
         {
             var connection = msg.SenderConnection;
-            Authenticator.Authenticate(msg.ReadString(), msg.ReadString())
+            var asd = Authenticator.Authenticate(msg.ReadString(), msg.ReadString())
                 .ContinueWith((approval) =>
                 {
                     var authentication = approval.Result;
                     authentication.Connection = connection;
                     AuthenticationResults.Add(authentication);
                 });
+            AddRunningTask(asd);
         }
 
         protected virtual void OnAuthenticationApproved(AuthenticationResult authenticationResult)

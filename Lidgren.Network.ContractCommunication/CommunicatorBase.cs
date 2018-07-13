@@ -15,6 +15,7 @@ namespace Lidgren.Network.ContractCommunication
         protected Dictionary<ushort, MessageFilter> _sendFilters;
 
         protected Dictionary<string, ushort> _sendAddressDictionary;
+        protected List<Task> RunningTasks = new List<Task>();
         public TServiceContract Contract { get; private set; }
 
         protected NetPeer NetConnector;
@@ -24,7 +25,7 @@ namespace Lidgren.Network.ContractCommunication
         protected ConverterBase<TSerializedSendType> Converter;
 
         public Action<NetConnectionStatus> OnConnectionStatusChanged;
-
+        
         protected void Initialize(Type sendContractType, Type recieveContractType)
         {
             if (!sendContractType.IsInterface || !recieveContractType.IsInterface)
@@ -119,9 +120,32 @@ namespace Lidgren.Network.ContractCommunication
             }
         }
 
-        public virtual void Tick()
+        protected void RunTasks()
         {
+            for (int i = RunningTasks.Count; i-- > 0;)
+            {
+                AggregateException e = null;
+                var t = RunningTasks[i];
+                if (t.IsCompleted || t.IsCanceled)
+                {
+                    if (t.IsFaulted)
+                    {
+                        e = t.Exception;
+                    }
+                    RunningTasks.Remove(t);
+                }
+                if (e != null)
+                    throw e;
+            }
+        }
 
+        protected void AddRunningTask(Task task)
+        {
+            RunningTasks.Add(task);
+        }
+        public virtual void Tick(int interval)
+        {
+            
         }
     }
     public class MessageFilter
@@ -134,5 +158,5 @@ namespace Lidgren.Network.ContractCommunication
         public ushort Key;
         public T[] Args;
     }
-    
+
 }
