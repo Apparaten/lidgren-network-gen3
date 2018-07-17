@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 using Lidgren.Network;
@@ -35,48 +37,6 @@ namespace Lidgren.Network.ContractCommunication
 
         public override void Tick(int interval)
         {
-            NetIncomingMessage msg;
-            while ((msg = NetConnector.ReadMessage()) != null)
-            {
-                switch (msg.MessageType)
-                {
-                    case NetIncomingMessageType.VerboseDebugMessage:
-                    case NetIncomingMessageType.DebugMessage:
-                    case NetIncomingMessageType.WarningMessage:
-                    case NetIncomingMessageType.ErrorMessage:
-                        break;
-                    case NetIncomingMessageType.Error:
-                        break;
-                    case NetIncomingMessageType.StatusChanged:
-                        var change = (NetConnectionStatus)msg.ReadByte();
-                        OnConnectionStatusChanged?.Invoke(change);
-                        Console.WriteLine("Status change for connection: "+msg.SenderConnection+"\n\t"+msg.ReadString());
-                        break;
-                    case NetIncomingMessageType.UnconnectedData:
-                        break;
-                    case NetIncomingMessageType.ConnectionApproval:
-                        OnConnectionApproval(msg);
-                        break;
-                    case NetIncomingMessageType.Data:
-                        FilterMessage(msg);
-                        break;
-                    case NetIncomingMessageType.Receipt:
-                        break;
-                    case NetIncomingMessageType.DiscoveryRequest:
-                        break;
-                    case NetIncomingMessageType.DiscoveryResponse:
-                        break;
-                    case NetIncomingMessageType.NatIntroductionSuccess:
-                        break;
-                    case NetIncomingMessageType.ConnectionLatencyUpdated:
-                        break;
-                    default:
-                        Console.WriteLine("Unhandled type: " + msg.MessageType);
-                        break;
-                }
-                NetConnector.Recycle(msg);
-            }
-
             while (AuthenticationResults.Count > 0)
             {
                 var result = AuthenticationResults[0];
@@ -93,12 +53,58 @@ namespace Lidgren.Network.ContractCommunication
                 AuthenticationResults.Remove(AuthenticationResults[0]);
             }
             RunTasks();
+
+            NetIncomingMessage msg;
+            while ((msg = NetConnector.ReadMessage()) != null)
+            {
+                switch (msg.MessageType)
+                {
+                    case NetIncomingMessageType.VerboseDebugMessage:
+                    case NetIncomingMessageType.DebugMessage:
+                    case NetIncomingMessageType.WarningMessage:
+                    case NetIncomingMessageType.ErrorMessage:
+                        break;
+                    case NetIncomingMessageType.Error:
+                        break;
+                    case NetIncomingMessageType.StatusChanged:
+                        var change = (NetConnectionStatus)msg.ReadByte();
+                        OnConnectionStatusChanged(change,msg.SenderConnection);
+                        break;
+                    case NetIncomingMessageType.UnconnectedData:
+                        break;
+                    case NetIncomingMessageType.ConnectionApproval:
+                        ConnectionApproval(msg);
+                        break;
+                    case NetIncomingMessageType.Data:
+                        FilterMessage(msg);
+                        break;
+                    case NetIncomingMessageType.Receipt:
+                        break;
+                    case NetIncomingMessageType.DiscoveryRequest:
+                        break;
+                    case NetIncomingMessageType.DiscoveryResponse:
+                        break;
+                    case NetIncomingMessageType.NatIntroductionSuccess:
+                        break;
+                    case NetIncomingMessageType.ConnectionLatencyUpdated:
+                        break;
+                    default:
+                        Log("Unhandled type: " + msg.MessageType);
+                        break;
+                }
+                NetConnector.Recycle(msg);
+            }
+
+            
             Task.Delay(interval).Wait();
         }
 
+        protected override void Log(object message, [CallerMemberName]string caller = null)
+        {
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss}]\t[{caller}]\t{message.ToString()}");
+        }
 
-
-        protected virtual void OnConnectionApproval(NetIncomingMessage msg)
+        protected virtual void ConnectionApproval(NetIncomingMessage msg)
         {
             var connection = msg.SenderConnection;
             var asd = Authenticator.Authenticate(msg.ReadString(), msg.ReadString())
@@ -111,6 +117,7 @@ namespace Lidgren.Network.ContractCommunication
             AddRunningTask(asd);
         }
 
+        
         protected virtual void OnAuthenticationApproved(AuthenticationResult authenticationResult)
         {
 

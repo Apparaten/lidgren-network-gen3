@@ -42,8 +42,7 @@ namespace Lidgren.Network.ContractCommunication
                         break;
                     case NetIncomingMessageType.StatusChanged:
                         var change = (NetConnectionStatus)msg.ReadByte();
-                        OnConnectionStatusChanged?.Invoke(change);
-                        Console.WriteLine(msg.ReadString());
+                        OnConnectionStatusChanged(change,msg.SenderConnection);
                         break;
                     case NetIncomingMessageType.UnconnectedData:
                         break;

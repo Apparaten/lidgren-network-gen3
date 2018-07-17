@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.Remoting.Messaging;
 using System.Text;
 using System.Threading.Tasks;
@@ -24,8 +25,8 @@ namespace Lidgren.Network.ContractCommunication
 
         protected ConverterBase<TSerializedSendType> Converter;
 
-        public Action<NetConnectionStatus> OnConnectionStatusChanged;
-        
+        public event Action<NetConnectionStatus> OnConnectionStatusChangedEvent;
+        public event Action<object, string> OnLoggedEvent;
         protected void Initialize(Type sendContractType, Type recieveContractType)
         {
             if (!sendContractType.IsInterface || !recieveContractType.IsInterface)
@@ -116,13 +117,13 @@ namespace Lidgren.Network.ContractCommunication
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.InnerException);
+                Log(ex.InnerException ?? ex);
             }
         }
 
         protected void RunTasks()
         {
-            for (int i = RunningTasks.Count; i-- > 0;)
+            for (var i = RunningTasks.Count; i-- > 0;)
             {
                 AggregateException e = null;
                 var t = RunningTasks[i];
@@ -139,6 +140,10 @@ namespace Lidgren.Network.ContractCommunication
             }
         }
 
+        protected virtual void Log(object message, [CallerMemberName] string caller = null)
+        {
+            OnLoggedEvent?.Invoke(message.ToString(),caller);
+        }
         protected void AddRunningTask(Task task)
         {
             RunningTasks.Add(task);
@@ -147,6 +152,41 @@ namespace Lidgren.Network.ContractCommunication
         {
             
         }
+
+        public void CloseConnection(string closeMessage = "")
+        {
+            NetConnector.Shutdown(closeMessage);
+        }
+
+        
+        protected virtual void OnConnectionStatusChanged(NetConnectionStatus status, NetConnection connection)
+        {
+            switch (status)
+            {
+                case NetConnectionStatus.None:
+                    break;
+                case NetConnectionStatus.InitiatedConnect:
+                    break;
+                case NetConnectionStatus.ReceivedInitiation:
+                    break;
+                case NetConnectionStatus.RespondedAwaitingApproval:
+                    break;
+                case NetConnectionStatus.RespondedConnect:
+                    break;
+                case NetConnectionStatus.Connected:
+                    OnConnected(connection);
+                    break;
+                case NetConnectionStatus.Disconnecting:
+                    break;
+                case NetConnectionStatus.Disconnected:
+                    OnDisconnected(connection);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(status), status, null);
+            }
+        }
+        protected abstract void OnDisconnected(NetConnection connection);
+        protected abstract void OnConnected(NetConnection connection);
     }
     public class MessageFilter
     {
