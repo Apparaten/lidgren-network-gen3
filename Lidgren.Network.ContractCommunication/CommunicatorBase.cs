@@ -3,13 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using System.Runtime.Remoting.Messaging;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Lidgren.Network.ContractCommunication
 {
-    public abstract class CommunicatorBase<TServiceContract,TSerializedSendType> where TServiceContract : IContract
+    public abstract class CommunicatorBase<TServiceContract,TSerializedSendType> where TServiceContract : IContract,new()
     {
 
         protected Dictionary<ushort, MessageFilter> _recieveFilters;
@@ -26,7 +24,21 @@ namespace Lidgren.Network.ContractCommunication
         protected ConverterBase<TSerializedSendType> Converter;
 
         public event Action<NetConnectionStatus> OnConnectionStatusChangedEvent;
-        public event Action<object, string> OnLoggedEvent;
+        private List<Tuple<Object, string>> _logList = new List<Tuple<object, string>>();
+        private event Action<object, string> _onLoggedEvent;
+        public event Action<object, string> OnLoggedEvent
+        {
+            add
+            {
+                _onLoggedEvent += value;
+                foreach (var logEntry in _logList)
+                {
+                    value.Invoke(logEntry.Item1,logEntry.Item2);
+                }
+            }
+            remove => _onLoggedEvent -= value;
+        }
+
         protected void Initialize(Type sendContractType, Type recieveContractType)
         {
             if (!sendContractType.IsInterface || !recieveContractType.IsInterface)
@@ -34,23 +46,27 @@ namespace Lidgren.Network.ContractCommunication
                 throw new Exception("type must be an interface!");
             }
 
-            Contract = ClassBuilder.BuildProType<TServiceContract>();
+            Contract = new TServiceContract();
             _recieveFilters = MapContract(this, recieveContractType);
             _sendFilters = MapContract(Contract, sendContractType);
-            _sendAddressDictionary = GetAddresses(typeof(TServiceContract));
+            var sendContract = Contract.GetType().GetInterfaces().First(@interface =>
+                sendContractType.IsAssignableFrom(@interface) && @interface != sendContractType);
+            _sendAddressDictionary = GetAddresses(sendContract);
         }
         private Dictionary<string, ushort> GetAddresses(Type type)
         {
             var addresses = new Dictionary<string, ushort>();
-            const BindingFlags flags = BindingFlags.Public | BindingFlags.FlattenHierarchy | BindingFlags.Instance;
+            //const BindingFlags flags = BindingFlags.Public | BindingFlags.FlattenHierarchy | BindingFlags.Instance;
 
-            var methods = new List<MethodInfo>(type.GetMethods(flags).OrderByDescending(m => m.Name));
+            //var methods = new List<MethodInfo>(type.GetMethods(flags).OrderByDescending(m => m.Name));
+            var methods = type.GetMethods();
+            //var aaa = type.GetMethod("asd");
             var addressIndexer = default(ushort);
             foreach (var methodInfo in methods)
             {
                 addresses.Add(methodInfo.Name, addressIndexer++);
             }
-
+            Log($"Got {addresses.Count} addresses for {type.Name}");
             return addresses;
         }
         private Dictionary<ushort, MessageFilter> MapContract(object mapObject, Type inheritedType)
@@ -58,9 +74,9 @@ namespace Lidgren.Network.ContractCommunication
             var interfaces = mapObject.GetType().GetInterfaces();
             var contract = interfaces.First(@interface => inheritedType.IsAssignableFrom(@interface) && @interface != inheritedType);
 
-            const BindingFlags flags = BindingFlags.Public | BindingFlags.FlattenHierarchy | BindingFlags.Instance;
+            //const BindingFlags flags = BindingFlags.Public | BindingFlags.FlattenHierarchy | BindingFlags.Instance;
 
-            var methods = new List<MethodInfo>(contract.GetMethods(flags).OrderByDescending(m => m.Name));
+            var methods = new List<MethodInfo>(contract.GetMethods(/*flags*/).OrderByDescending(m => m.Name));
 
             var addresses = GetAddresses(contract);
             var callbackFilters = new Dictionary<ushort, MessageFilter>();
@@ -142,7 +158,8 @@ namespace Lidgren.Network.ContractCommunication
 
         protected virtual void Log(object message, [CallerMemberName] string caller = null)
         {
-            OnLoggedEvent?.Invoke(message.ToString(),caller);
+            _onLoggedEvent?.Invoke(message.ToString(),caller);
+            _logList.Add(new Tuple<object, string>(message, caller));
         }
         protected void AddRunningTask(Task task)
         {
@@ -199,4 +216,9 @@ namespace Lidgren.Network.ContractCommunication
         public T[] Args;
     }
 
+    public class ContractHolder<T> where T : IContract
+    {
+        public T Contract;
+        
+    }
 }

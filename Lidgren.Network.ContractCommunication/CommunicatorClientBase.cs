@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Lidgren.Network.ContractCommunication
 {
-    public abstract class CommunicatorClientBase<TServiceContract, TSerializedSendType> : CommunicatorBase<TServiceContract,TSerializedSendType> where TServiceContract : IProviderContract
+    public abstract class CommunicatorClientBase<TServiceContract, TSerializedSendType> : CommunicatorBase<TServiceContract,TSerializedSendType> where TServiceContract : IProviderContract,new ()
     {
         private string _host;
         private int _port;
@@ -18,6 +18,7 @@ namespace Lidgren.Network.ContractCommunication
             NetConnector = new NetClient(configuration);
             Initialize(typeof(IProviderContract), typeof(ICallbackContract));
             NetConnector.Start();
+            Log("Networking Thread Started");
         }
         public virtual void Connect(string user, string password)
         {

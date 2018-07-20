@@ -9,7 +9,7 @@ using Lidgren.Network;
 
 namespace Lidgren.Network.ContractCommunication
 {
-    public abstract class CommunicatorProviderBase<TServiceContract, TSerializedSendType> : CommunicatorBase<TServiceContract, TSerializedSendType> where TServiceContract : ICallbackContract
+    public abstract class CommunicatorProviderBase<TServiceContract, TSerializedSendType> : CommunicatorBase<TServiceContract, TSerializedSendType> where TServiceContract : ICallbackContract,new()
     {
         protected IAuthenticator Authenticator;
         protected string[] RequiredAuthenticationRoles;
@@ -18,6 +18,7 @@ namespace Lidgren.Network.ContractCommunication
 
         protected CommunicatorProviderBase(NetPeerConfiguration configuration,ConverterBase<TSerializedSendType> converter, IAuthenticator authenticator = null, string[] requiredAuthenticationRoles = null)
         {
+            Configuration = configuration;
             Converter = converter;
             if (authenticator != null)
             {
@@ -33,6 +34,7 @@ namespace Lidgren.Network.ContractCommunication
         public virtual void StartService()
         {
             NetConnector.Start();
+            Log($"Service started on port: {Configuration.Port}");
         }
 
         public override void Tick(int interval)
@@ -107,14 +109,14 @@ namespace Lidgren.Network.ContractCommunication
         protected virtual void ConnectionApproval(NetIncomingMessage msg)
         {
             var connection = msg.SenderConnection;
-            var asd = Authenticator.Authenticate(msg.ReadString(), msg.ReadString())
+            var authTask = Authenticator.Authenticate(msg.ReadString(), msg.ReadString())
                 .ContinueWith((approval) =>
                 {
                     var authentication = approval.Result;
                     authentication.Connection = connection;
                     AuthenticationResults.Add(authentication);
                 });
-            AddRunningTask(asd);
+            AddRunningTask(authTask);
         }
 
         
