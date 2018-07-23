@@ -17,11 +17,25 @@ namespace Lidgren.Network.ContractCommunication
             _port = port;
             NetConnector = new NetClient(configuration);
             Initialize(typeof(IProviderContract), typeof(ICallbackContract));
-            NetConnector.Start();
-            Log("Networking Thread Started");
         }
         public virtual void Connect(string user, string password)
         {
+            var status = NetConnector.Status;
+            switch (status)
+            {
+                case NetPeerStatus.NotRunning:
+                    NetConnector.Start();
+                    Log("Networking Thread Started");
+                    break;
+                case NetPeerStatus.Starting:
+                    break;
+                case NetPeerStatus.Running:
+                    break;
+                case NetPeerStatus.ShutdownRequested:
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
             var msg = NetConnector.CreateMessage();
             msg.Write(user);
             msg.Write(password);
