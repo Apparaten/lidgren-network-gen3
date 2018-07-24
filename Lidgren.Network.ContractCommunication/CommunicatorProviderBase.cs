@@ -15,7 +15,7 @@ namespace Lidgren.Network.ContractCommunication
         protected string[] RequiredAuthenticationRoles;
 
         private List<AuthenticationResult> AuthenticationResults { get; set; } = new List<AuthenticationResult>();
-
+        private Stopwatch _tickWatch = new Stopwatch();
         protected CommunicatorProviderBase(NetPeerConfiguration configuration,ConverterBase<TSerializedSendType> converter, IAuthenticator authenticator = null, string[] requiredAuthenticationRoles = null)
         {
             Configuration = configuration;
@@ -39,6 +39,7 @@ namespace Lidgren.Network.ContractCommunication
 
         public override void Tick(int interval)
         {
+            _tickWatch.Restart();
             while (AuthenticationResults.Count > 0)
             {
                 var result = AuthenticationResults[0];
@@ -96,9 +97,17 @@ namespace Lidgren.Network.ContractCommunication
                 }
                 NetConnector.Recycle(msg);
             }
-
-            
-            Task.Delay(interval).Wait();
+            _tickWatch.Stop();
+            var elapsedTime = (int)_tickWatch.ElapsedMilliseconds;
+            var finalInterval = interval - elapsedTime;
+            if (finalInterval > 0)
+            {
+                Task.Delay(finalInterval).Wait();
+            }
+            else
+            {
+                Console.WriteLine($"¤    elapsed: {elapsedTime} vs interval:{interval} = {finalInterval}");
+            }
         }
 
         protected override void Log(object message, [CallerMemberName]string caller = null)

@@ -21,6 +21,8 @@ namespace Lidgren.Network.ContractCommunication
         protected NetConnection CallerConnection;
         protected NetPeerConfiguration Configuration;
 
+        public NetConnectionStatus ConnectionStatus { get; protected set; }
+
         protected ConverterBase<TSerializedSendType> Converter;
 
         public event Action<NetConnectionStatus> OnConnectionStatusChangedEvent;
@@ -151,20 +153,47 @@ namespace Lidgren.Network.ContractCommunication
 
         protected void RunTasks()
         {
+            var exceptions = new List<Exception>();
             for (var i = RunningTasks.Count; i-- > 0;)
             {
                 AggregateException e = null;
                 var t = RunningTasks[i];
-                if (t.IsCompleted || t.IsCanceled)
+                switch (t.Status)
                 {
-                    if (t.IsFaulted)
-                    {
-                        e = t.Exception;
-                    }
-                    RunningTasks.Remove(t);
+                    case TaskStatus.Created:
+                        break;
+                    case TaskStatus.WaitingForActivation:
+                        break;
+                    case TaskStatus.WaitingToRun:
+                        break;
+                    case TaskStatus.Running:
+                        break;
+                    case TaskStatus.WaitingForChildrenToComplete:
+                        break;
+                    case TaskStatus.RanToCompletion:
+                        RunningTasks.Remove(t);
+                        break;
+                    case TaskStatus.Canceled:
+                        break;
+                    case TaskStatus.Faulted:
+                        break;
                 }
+                //if (t.IsCompleted || t.IsCanceled)
+                //{
+                //    if (t.IsFaulted)
+                //    {
+                //        e = t.Exception;
+                //    }
+                //    RunningTasks.Remove(t);
+                //}
                 if (e != null)
-                    throw e;
+                    exceptions.Add(e);
+            }
+            foreach (var exception in exceptions)
+            {
+                Console.WriteLine("#-------------------EXCEPTION------------------#");
+                Console.WriteLine(exception.Message);
+                Console.WriteLine(exception.StackTrace);
             }
         }
 
@@ -182,7 +211,7 @@ namespace Lidgren.Network.ContractCommunication
             
         }
 
-        public void CloseConnection(string closeMessage = "")
+        public virtual void CloseConnection(string closeMessage = "")
         {
             NetConnector.Shutdown(closeMessage);
         }
@@ -190,6 +219,8 @@ namespace Lidgren.Network.ContractCommunication
         
         protected virtual void OnConnectionStatusChanged(NetConnectionStatus status, NetConnection connection)
         {
+            ConnectionStatus = status;
+            OnConnectionStatusChangedEvent?.Invoke(status);
             switch (status)
             {
                 case NetConnectionStatus.None:

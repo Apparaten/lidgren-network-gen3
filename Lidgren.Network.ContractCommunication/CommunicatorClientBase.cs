@@ -57,12 +57,12 @@ namespace Lidgren.Network.ContractCommunication
                         break;
                     case NetIncomingMessageType.StatusChanged:
                         var change = (NetConnectionStatus)msg.ReadByte();
+                        Console.WriteLine(msg.ReadString());
                         OnConnectionStatusChanged(change,msg.SenderConnection);
                         break;
                     case NetIncomingMessageType.UnconnectedData:
                         break;
                     case NetIncomingMessageType.ConnectionApproval:
-                        Console.WriteLine("connectionApproval Client...");
                         break;
                     case NetIncomingMessageType.Data:
                         FilterMessage(msg);
@@ -85,6 +85,11 @@ namespace Lidgren.Network.ContractCommunication
             }
             RunTasks();
             Task.Delay(interval).Wait();
+        }
+
+        public override void CloseConnection(string closeMessage = "")
+        {
+            NetConnector.Connections.FirstOrDefault()?.Disconnect(closeMessage);
         }
     }
 }
