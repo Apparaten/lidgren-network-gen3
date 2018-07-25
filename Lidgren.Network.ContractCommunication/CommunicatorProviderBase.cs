@@ -14,8 +14,10 @@ namespace Lidgren.Network.ContractCommunication
         protected IAuthenticator Authenticator;
         protected string[] RequiredAuthenticationRoles;
 
-        private List<AuthenticationResult> AuthenticationResults { get; set; } = new List<AuthenticationResult>();
-        private Stopwatch _tickWatch = new Stopwatch();
+        private List<Tuple<AuthenticationResult,string>> AuthenticationResults { get;} = new List<Tuple<AuthenticationResult,string>>();
+        private List<string> PendingUserLogins { get; } = new List<string>();
+        private Stopwatch TickWatch { get; } = new Stopwatch();
+
         protected CommunicatorProviderBase(NetPeerConfiguration configuration,ConverterBase<TSerializedSendType> converter, IAuthenticator authenticator = null, string[] requiredAuthenticationRoles = null)
         {
             Configuration = configuration;
@@ -39,19 +41,22 @@ namespace Lidgren.Network.ContractCommunication
 
         public override void Tick(int interval)
         {
-            _tickWatch.Restart();
+            TickWatch.Restart();
             while (AuthenticationResults.Count > 0)
             {
-                var result = AuthenticationResults[0];
-                if (AuthenticationResults[0].Success)
+                var result = AuthenticationResults[0].Item1;
+                var user = AuthenticationResults[0].Item2;
+                if (result.Success)
                 {
                     result.Connection.Approve();
-                    OnAuthenticationApproved(AuthenticationResults[0]);
+                    OnAuthenticationAppoved_Internal(user);
+                    OnAuthenticationApproved(result,user);
                 }
                 else
                 {
                     result.Connection.Deny();
-                    OnAuthenticationDenied(AuthenticationResults[0]);
+                    OnAuthenticationDenied_Internal(user);
+                    OnAuthenticationDenied(result, user);
                 }
                 AuthenticationResults.Remove(AuthenticationResults[0]);
             }
@@ -97,8 +102,8 @@ namespace Lidgren.Network.ContractCommunication
                 }
                 NetConnector.Recycle(msg);
             }
-            _tickWatch.Stop();
-            var elapsedTime = (int)_tickWatch.ElapsedMilliseconds;
+            TickWatch.Stop();
+            var elapsedTime = (int)TickWatch.ElapsedMilliseconds;
             var finalInterval = interval - elapsedTime;
             if (finalInterval > 0)
             {
@@ -106,7 +111,7 @@ namespace Lidgren.Network.ContractCommunication
             }
             else
             {
-                Console.WriteLine($"¤    elapsed: {elapsedTime} vs interval:{interval} = {finalInterval}");
+                Log($"Tick loop is working overhead at {elapsedTime}ms, configured interval is at {interval}ms");
             }
         }
 
@@ -118,24 +123,48 @@ namespace Lidgren.Network.ContractCommunication
         protected virtual void ConnectionApproval(NetIncomingMessage msg)
         {
             var connection = msg.SenderConnection;
-            var authTask = Authenticator.Authenticate(msg.ReadString(), msg.ReadString())
-                .ContinueWith((approval) =>
+            var user = msg.ReadString().ToLower();
+            var password = msg.ReadString();
+            if (PendingUserLogins.Contains(user))
+            {
+                AuthenticationResults.Add(new Tuple<AuthenticationResult, string>(
+                    new AuthenticationResult() {Connection = msg.SenderConnection, Success = false}, user));
+                return;
+            }
+            PendingUserLogins.Add(user);
+
+            var authTask = Authenticator.Authenticate(user, password)
+                .ContinueWith( async approval=>
                 {
-                    var authentication = approval.Result;
+                    var authentication = await approval;
+                    ConnectionApprovalExtras(authentication);
                     authentication.Connection = connection;
-                    AuthenticationResults.Add(authentication);
+                    AuthenticationResults.Add(new Tuple<AuthenticationResult,string>(authentication,user));
                 });
             AddRunningTask(authTask);
         }
 
-        
-        protected virtual void OnAuthenticationApproved(AuthenticationResult authenticationResult)
+        protected virtual void ConnectionApprovalExtras(AuthenticationResult authenticationResult)
         {
-
+            
         }
-        protected virtual void OnAuthenticationDenied(AuthenticationResult authenticationResult)
-        {
 
+        private void OnAuthenticationAppoved_Internal(string user)
+        {
+            PendingUserLogins.Remove(user);
+        }
+
+        private void OnAuthenticationDenied_Internal(string user)
+        {
+            PendingUserLogins.Remove(user);
+        }
+        protected virtual void OnAuthenticationApproved(AuthenticationResult authenticationResult,string user)
+        {
+            
+        }
+        protected virtual void OnAuthenticationDenied(AuthenticationResult authenticationResult,string user)
+        {
+            
         }
     }
 }

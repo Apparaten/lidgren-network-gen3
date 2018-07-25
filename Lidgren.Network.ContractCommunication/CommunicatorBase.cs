@@ -103,8 +103,6 @@ namespace Lidgren.Network.ContractCommunication
         public void Call<T1, T2, T3, T4, T5, T6, T7, T8>(Action<T1, T2, T3, T4, T5, T6, T7, T8> method, T1 arg1, T2 arg2, T3 arg3, T4 arg4,T5 arg5,T6 arg6, T7 arg7, T8 arg8, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] { arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8 }, connection);
         public void Call<T1, T2, T3, T4, T5, T6, T7, T8, T9>(Action<T1, T2, T3, T4, T5, T6, T7, T8, T9> method, T1 arg1, T2 arg2, T3 arg3, T4 arg4,T5 arg5,T6 arg6, T7 arg7, T8 arg8, T9 arg9, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] { arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9 }, connection);
         public void Call<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>(Action<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10> method, T1 arg1, T2 arg2, T3 arg3, T4 arg4,T5 arg5,T6 arg6, T7 arg7, T8 arg8, T9 arg9, T10 arg10, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] { arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 }, connection);
-
-
         //default last parameter netConnection
         public void Call(Action<NetConnection> method, NetConnection connection = null) => CreateAndSendCall(method.Method, null, connection);
         public void Call<T1>(Action<T1, NetConnection> method, T1 arg1, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] { arg1 }, connection);
@@ -117,6 +115,18 @@ namespace Lidgren.Network.ContractCommunication
         public void Call<T1,T2,T3,T4,T5,T6,T7,T8>(Action<T1,T2,T3,T4,T5,T6,T7,T8, NetConnection> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5, T6 arg6, T7 arg7,T8 arg8, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] { arg1,arg2, arg3, arg4, arg5, arg6, arg7, arg8 }, connection);
         public void Call<T1,T2,T3,T4,T5,T6,T7,T8,T9>(Action<T1,T2,T3,T4,T5,T6,T7,T8,T9, NetConnection> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5, T6 arg6, T7 arg7,T8 arg8, T9 arg9, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] { arg1,arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9 }, connection);
         public void Call<T1,T2,T3,T4,T5,T6,T7,T8,T9,T10>(Action<T1,T2,T3,T4,T5,T6,T7,T8,T9,T10, NetConnection> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5, T6 arg6, T7 arg7,T8 arg8, T9 arg9, T10 arg10, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] { arg1,arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 }, connection);
+        //Task with default last parameter netConnection
+        public void Call<T1>(Func<T1, NetConnection, Task> method, T1 arg1, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] {arg1});
+        public void Call<T1,T2>(Func<T1,T2, NetConnection, Task> method, T1 arg1,T2 arg2, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] {arg1,arg2});
+        public void Call<T1,T2,T3>(Func<T1,T2,T3, NetConnection, Task> method, T1 arg1,T2 arg2,T3 arg3, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] {arg1,arg2,arg3});
+        public void Call<T1,T2,T3,T4>(Func<T1,T2,T3,T4, NetConnection, Task> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] {arg1,arg2,arg3,arg4});
+        public void Call<T1,T2,T3,T4,T5>(Func<T1,T2,T3,T4,T5, NetConnection, Task> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] {arg1,arg2,arg3,arg4,arg5});
+        public void Call<T1,T2,T3,T4,T5,T6>(Func<T1,T2,T3,T4,T5,T6, NetConnection, Task> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5,T6 arg6, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] {arg1,arg2,arg3,arg4,arg5,arg6});
+        public void Call<T1,T2,T3,T4,T5,T6,T7>(Func<T1,T2,T3,T4,T5,T6,T7, NetConnection, Task> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5,T6 arg6,T7 arg7, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] {arg1,arg2,arg3,arg4,arg5,arg6,arg7});
+        public void Call<T1,T2,T3,T4,T5,T6,T7,T8>(Func<T1,T2,T3,T4,T5,T6,T7,T8, NetConnection, Task> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5,T6 arg6,T7 arg7,T8 arg8, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] {arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8});
+        public void Call<T1,T2,T3,T4,T5,T6,T7,T8,T9>(Func<T1,T2,T3,T4,T5,T6,T7,T8,T9, NetConnection, Task> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5,T6 arg6,T7 arg7,T8 arg8,T9 arg9, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] {arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9});
+        public void Call<T1,T2,T3,T4,T5,T6,T7,T8,T9,T10>(Func<T1,T2,T3,T4,T5,T6,T7,T8,T9,T10, NetConnection, Task> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5,T6 arg6,T7 arg7,T8 arg8,T9 arg9,T10 arg10, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] {arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9,arg10});
+
 
         private void CreateAndSendCall(MethodInfo info, object[] args = null, NetConnection recipient = null)
         {
@@ -143,7 +153,14 @@ namespace Lidgren.Network.ContractCommunication
             CallerConnection = message.SenderConnection;
             try
             {
-                pointer.Method.Invoke(this, args);
+                if (pointer.Method.ReturnType == typeof(Task))
+                {
+                    AddRunningTask((Task)pointer.Method.Invoke(this,args));
+                }
+                else
+                {
+                    pointer.Method.Invoke(this, args);
+                }
             }
             catch (Exception ex)
             {
