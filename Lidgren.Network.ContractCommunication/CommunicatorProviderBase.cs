@@ -15,7 +15,7 @@ namespace Lidgren.Network.ContractCommunication
         protected string[] RequiredAuthenticationRoles;
 
         private List<Tuple<AuthenticationResult,string>> AuthenticationResults { get;} = new List<Tuple<AuthenticationResult,string>>();
-        private List<string> PendingUserLogins { get; } = new List<string>();
+        private Dictionary<NetConnection,string> PendingAndLoggedInUsers { get; } = new Dictionary<NetConnection, string>();
         private Stopwatch TickWatch { get; } = new Stopwatch();
 
         protected CommunicatorProviderBase(NetPeerConfiguration configuration,ConverterBase<TSerializedSendType> converter, IAuthenticator authenticator = null, string[] requiredAuthenticationRoles = null)
@@ -49,13 +49,11 @@ namespace Lidgren.Network.ContractCommunication
                 if (result.Success)
                 {
                     result.Connection.Approve();
-                    OnAuthenticationAppoved_Internal(user);
                     OnAuthenticationApproved(result,user);
                 }
                 else
                 {
                     result.Connection.Deny();
-                    OnAuthenticationDenied_Internal(user);
                     OnAuthenticationDenied(result, user);
                 }
                 AuthenticationResults.Remove(AuthenticationResults[0]);
@@ -115,6 +113,15 @@ namespace Lidgren.Network.ContractCommunication
             }
         }
 
+        protected override void OnDisconnected_Internal(NetConnection connection)
+        {
+            PendingAndLoggedInUsers.Remove(connection);
+        }
+        protected override void OnDisconnected(NetConnection connection)
+        {
+            
+        }
+
         protected override void Log(object message, [CallerMemberName]string caller = null)
         {
             Console.WriteLine($"[{DateTime.Now:HH:mm:ss}]\t[{caller}]\t{message.ToString()}");
@@ -125,13 +132,13 @@ namespace Lidgren.Network.ContractCommunication
             var connection = msg.SenderConnection;
             var user = msg.ReadString().ToLower();
             var password = msg.ReadString();
-            if (PendingUserLogins.Contains(user))
+            if (PendingAndLoggedInUsers.Values.Contains(user))
             {
                 AuthenticationResults.Add(new Tuple<AuthenticationResult, string>(
                     new AuthenticationResult() {Connection = msg.SenderConnection, Success = false}, user));
                 return;
             }
-            PendingUserLogins.Add(user);
+            PendingAndLoggedInUsers.Add(connection,user);
 
             var authTask = Authenticator.Authenticate(user, password)
                 .ContinueWith( async approval=>
@@ -147,16 +154,6 @@ namespace Lidgren.Network.ContractCommunication
         protected virtual void ConnectionApprovalExtras(AuthenticationResult authenticationResult)
         {
             
-        }
-
-        private void OnAuthenticationAppoved_Internal(string user)
-        {
-            PendingUserLogins.Remove(user);
-        }
-
-        private void OnAuthenticationDenied_Internal(string user)
-        {
-            PendingUserLogins.Remove(user);
         }
         protected virtual void OnAuthenticationApproved(AuthenticationResult authenticationResult,string user)
         {

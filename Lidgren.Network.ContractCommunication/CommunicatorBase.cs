@@ -256,11 +256,17 @@ namespace Lidgren.Network.ContractCommunication
                 case NetConnectionStatus.Disconnecting:
                     break;
                 case NetConnectionStatus.Disconnected:
+                    OnDisconnected_Internal(connection);
                     OnDisconnected(connection);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(status), status, null);
             }
+        }
+
+        protected virtual void OnDisconnected_Internal(NetConnection connection)
+        {
+            
         }
         protected abstract void OnDisconnected(NetConnection connection);
         protected abstract void OnConnected(NetConnection connection);
