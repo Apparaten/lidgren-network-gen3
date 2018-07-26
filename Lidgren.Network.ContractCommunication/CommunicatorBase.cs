@@ -15,6 +15,7 @@ namespace Lidgren.Network.ContractCommunication
 
         protected Dictionary<string, ushort> _sendAddressDictionary { get; private set; }
         protected List<Task> RunningTasks = new List<Task>();
+        public int CurrentTaskCount => RunningTasks.Count;
         public TServiceContract Contract { get; private set; }
 
         protected NetPeer NetConnector;
@@ -22,7 +23,7 @@ namespace Lidgren.Network.ContractCommunication
         protected NetPeerConfiguration Configuration;
 
         public NetConnectionStatus ConnectionStatus { get; protected set; }
-
+        
         protected ConverterBase<TSerializedSendType> Converter;
 
         public event Action<NetConnectionStatus> OnConnectionStatusChangedEvent;
@@ -40,6 +41,8 @@ namespace Lidgren.Network.ContractCommunication
             }
             remove => _onLoggedEvent -= value;
         }
+
+        public List<Exception> ExceptionsCaught { get; private set; } = new List<Exception>();
 
         protected void Initialize(Type sendContractType, Type recieveContractType)
         {
@@ -170,10 +173,8 @@ namespace Lidgren.Network.ContractCommunication
 
         protected void RunTasks()
         {
-            var exceptions = new List<Exception>();
             for (var i = RunningTasks.Count; i-- > 0;)
             {
-                AggregateException e = null;
                 var t = RunningTasks[i];
                 switch (t.Status)
                 {
@@ -191,29 +192,16 @@ namespace Lidgren.Network.ContractCommunication
                         RunningTasks.Remove(t);
                         break;
                     case TaskStatus.Canceled:
+                        if(t.Exception != null)
+                            ExceptionsCaught.Add(t.Exception);
                         break;
                     case TaskStatus.Faulted:
+                        if (t.Exception != null)
+                            ExceptionsCaught.Add(t.Exception);
                         break;
                 }
-                //if (t.IsCompleted || t.IsCanceled)
-                //{
-                //    if (t.IsFaulted)
-                //    {
-                //        e = t.Exception;
-                //    }
-                //    RunningTasks.Remove(t);
-                //}
-                if (e != null)
-                    exceptions.Add(e);
-            }
-            foreach (var exception in exceptions)
-            {
-                Console.WriteLine("#-------------------EXCEPTION------------------#");
-                Console.WriteLine(exception.Message);
-                Console.WriteLine(exception.StackTrace);
             }
         }
-
         protected virtual void Log(object message, [CallerMemberName] string caller = null)
         {
             _onLoggedEvent?.Invoke(message.ToString(),caller);
