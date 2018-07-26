@@ -192,10 +192,12 @@ namespace Lidgren.Network.ContractCommunication
                         RunningTasks.Remove(t);
                         break;
                     case TaskStatus.Canceled:
+                        RunningTasks.Remove(t);
                         if(t.Exception != null)
                             ExceptionsCaught.Add(t.Exception);
                         break;
                     case TaskStatus.Faulted:
+                        RunningTasks.Remove(t);
                         if (t.Exception != null)
                             ExceptionsCaught.Add(t.Exception);
                         break;

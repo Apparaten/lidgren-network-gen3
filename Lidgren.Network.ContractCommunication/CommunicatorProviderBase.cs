@@ -39,7 +39,7 @@ namespace Lidgren.Network.ContractCommunication
             Log($"Service started on port: {Configuration.Port}");
         }
 
-        public override void Tick(int interval)
+        public override void Tick(int repeatRate)
         {
             TickWatch.Restart();
             while (AuthenticationResults.Count > 0)
@@ -101,6 +101,7 @@ namespace Lidgren.Network.ContractCommunication
                 NetConnector.Recycle(msg);
             }
             TickWatch.Stop();
+            var interval = 1000 / repeatRate;
             var elapsedTime = (int)TickWatch.ElapsedMilliseconds;
             var finalInterval = interval - elapsedTime;
             if (finalInterval > 0)
