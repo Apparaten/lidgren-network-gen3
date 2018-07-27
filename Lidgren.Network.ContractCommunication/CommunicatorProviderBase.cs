@@ -1,4 +1,5 @@
 ﻿using System;
+using System.CodeDom;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -40,26 +41,7 @@ namespace Lidgren.Network.ContractCommunication
         }
 
         public override void Tick(int repeatRate)
-        {
-            TickWatch.Restart();
-            while (AuthenticationResults.Count > 0)
-            {
-                var result = AuthenticationResults[0].Item1;
-                var user = AuthenticationResults[0].Item2;
-                if (result.Success)
-                {
-                    result.Connection.Approve();
-                    OnAuthenticationApproved(result,user);
-                }
-                else
-                {
-                    result.Connection.Deny();
-                    OnAuthenticationDenied(result, user);
-                }
-                AuthenticationResults.Remove(AuthenticationResults[0]);
-            }
-            RunTasks();
-
+        {            
             NetIncomingMessage msg;
             while ((msg = NetConnector.ReadMessage()) != null)
             {
@@ -82,7 +64,10 @@ namespace Lidgren.Network.ContractCommunication
                         ConnectionApproval(msg);
                         break;
                     case NetIncomingMessageType.Data:
-                        FilterMessage(msg);
+                        if (AuthorizedForMessage(msg.SenderConnection))
+                        {
+                            FilterMessage(msg);
+                        }
                         break;
                     case NetIncomingMessageType.Receipt:
                         break;
@@ -100,6 +85,23 @@ namespace Lidgren.Network.ContractCommunication
                 }
                 NetConnector.Recycle(msg);
             }
+            while (AuthenticationResults.Count > 0)
+            {
+                var result = AuthenticationResults[0].Item1;
+                var user = AuthenticationResults[0].Item2;
+                if (result.Success)
+                {
+                    result.Connection.Approve();
+                    OnAuthenticationApproved(result, user);
+                }
+                else
+                {
+                    result.Connection.Deny();
+                    OnAuthenticationDenied(result, user);
+                }
+                AuthenticationResults.Remove(AuthenticationResults[0]);
+            }
+            RunTasks();
             TickWatch.Stop();
             var interval = 1000 / repeatRate;
             var elapsedTime = (int)TickWatch.ElapsedMilliseconds;
@@ -112,10 +114,12 @@ namespace Lidgren.Network.ContractCommunication
             {
                 Log($"Tick loop is working overhead at {elapsedTime}ms, configured interval is at {interval}ms");
             }
+            TickWatch.Restart();
         }
 
         protected override void OnDisconnected_Internal(NetConnection connection)
         {
+            Log("removing user...");
             PendingAndLoggedInUsers.Remove(connection);
         }
         protected override void OnDisconnected(NetConnection connection)
@@ -125,9 +129,12 @@ namespace Lidgren.Network.ContractCommunication
 
         protected override void Log(object message, [CallerMemberName]string caller = null)
         {
-            Console.WriteLine($"[{DateTime.Now:HH:mm:ss}]\t[{caller}]\t{message.ToString()}");
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}]\t[{caller}]\t{message.ToString()}");
         }
-
+        protected virtual bool AuthorizedForMessage(NetConnection connection)
+        {
+            return PendingAndLoggedInUsers.ContainsKey(connection);
+        }
         protected virtual void ConnectionApproval(NetIncomingMessage msg)
         {
             var connection = msg.SenderConnection;

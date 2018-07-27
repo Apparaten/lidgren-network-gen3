@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -18,8 +19,9 @@ namespace Lidgren.Network.ContractCommunication
             NetConnector = new NetClient(configuration);
             Initialize(typeof(IProviderContract), typeof(ICallbackContract));
         }
-        public virtual void Connect(string user, string password)
+        public virtual void Connect(string user, string password,[CallerMemberName]string caller = "")
         {
+            Log("TRYING TO CONNECT - "+caller);
             var status = NetConnector.Status;
             switch (status)
             {
@@ -90,6 +92,7 @@ namespace Lidgren.Network.ContractCommunication
         public override void CloseConnection(string closeMessage = "")
         {
             NetConnector.Connections.FirstOrDefault()?.Disconnect(closeMessage);
+            NetConnector.Shutdown(closeMessage);
         }
     }
 }

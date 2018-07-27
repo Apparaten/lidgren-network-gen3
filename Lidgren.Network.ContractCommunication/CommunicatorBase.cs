@@ -252,6 +252,7 @@ namespace Lidgren.Network.ContractCommunication
                 default:
                     throw new ArgumentOutOfRangeException(nameof(status), status, null);
             }
+            Log(status);
         }
 
         protected virtual void OnDisconnected_Internal(NetConnection connection)
