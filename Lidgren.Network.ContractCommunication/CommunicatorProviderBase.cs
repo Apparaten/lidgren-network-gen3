@@ -97,6 +97,20 @@ namespace Lidgren.Network.ContractCommunication
                 }
                 else
                 {
+                    switch (result.RequestState)
+                    {
+                        case RequestState.EndpointFailure:
+                            result.Connection.Deny(NetConnectionResult.NoResponseFromRemoteHost);
+                            break;
+                        case RequestState.Success:
+                            result.Connection.Deny(NetConnectionResult.Unknown);
+                            break;
+                        case RequestState.UserAlreadyLoggedIn:
+                            result.Connection.Deny(NetConnectionResult.UserAlreadyLoggedIn);
+                            break;
+                        default:
+                            throw new ArgumentOutOfRangeException();
+                    }
                     result.Connection.Deny(result.RequestState == RequestState.EndpointFailure
                         ? NetConnectionResult.NoResponseFromRemoteHost
                         : NetConnectionResult.WrongCredentials);
@@ -150,7 +164,7 @@ namespace Lidgren.Network.ContractCommunication
             if (PendingAndLoggedInUsers.Values.Any(c => c.UserName == user))
             {
                 AuthenticationResults.Add(new Tuple<AuthenticationResult, string>(
-                    new AuthenticationResult() {Connection = connection, Success = false}, user));
+                    new AuthenticationResult() {Connection = connection, Success = false,RequestState = RequestState.UserAlreadyLoggedIn}, user));
                 return;
             }
             PendingAndLoggedInUsers.Add(connection,new CommunicationUser<TAuthenticationUser>(){UserName = user});

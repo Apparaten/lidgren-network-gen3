@@ -23,6 +23,7 @@ namespace Lidgren.Network
         ShutDown,
         AwaitingApproval,
         LocallyRequestedConnect,
-        RespondedConnect
+        RespondedConnect,
+        UserAlreadyLoggedIn
     }
 }

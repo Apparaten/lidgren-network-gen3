@@ -29,6 +29,10 @@ namespace Lidgren.Network.ContractCommunication
         /// <summary>
         /// Can reach authenticator service
         /// </summary>
-        Success
+        Success,
+        /// <summary>
+        /// The user is already logged in to the service
+        /// </summary>
+        UserAlreadyLoggedIn
     }
 }
