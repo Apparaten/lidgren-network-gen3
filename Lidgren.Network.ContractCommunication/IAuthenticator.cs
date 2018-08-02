@@ -33,6 +33,7 @@ namespace Lidgren.Network.ContractCommunication
         /// <summary>
         /// The user is already logged in to the service
         /// </summary>
-        UserAlreadyLoggedIn
+        UserAlreadyLoggedIn,
+        WrongCredentials
     }
 }

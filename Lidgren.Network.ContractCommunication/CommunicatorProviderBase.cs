@@ -108,12 +108,12 @@ namespace Lidgren.Network.ContractCommunication
                         case RequestState.UserAlreadyLoggedIn:
                             result.Connection.Deny(NetConnectionResult.UserAlreadyLoggedIn);
                             break;
+                        case RequestState.WrongCredentials:
+                            result.Connection.Deny(NetConnectionResult.WrongCredentials);
+                            break;
                         default:
                             throw new ArgumentOutOfRangeException();
                     }
-                    result.Connection.Deny(result.RequestState == RequestState.EndpointFailure
-                        ? NetConnectionResult.NoResponseFromRemoteHost
-                        : NetConnectionResult.WrongCredentials);
                     OnAuthenticationDenied(result, user);
                 }
                 AuthenticationResults.Remove(AuthenticationResults[0]);
