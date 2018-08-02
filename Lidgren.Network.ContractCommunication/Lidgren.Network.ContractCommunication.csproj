@@ -38,9 +38,13 @@
     <Reference Include="System.Data" />
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Xml" />
+    <Reference Include="UnityEngine">
+      <HintPath>..\UnityEngine.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ClassBuilder.cs" />
+    <Compile Include="CommunicationUser.cs" />
     <Compile Include="CommunicatorBase.cs" />
     <Compile Include="CommunicatorClientBase.cs" />
     <Compile Include="CommunicatorProviderBase.cs" />

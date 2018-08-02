@@ -10,13 +10,13 @@ using Lidgren.Network;
 
 namespace Lidgren.Network.ContractCommunication
 {
-    public abstract class CommunicatorProviderBase<TServiceContract, TSerializedSendType> : CommunicatorBase<TServiceContract, TSerializedSendType> where TServiceContract : ICallbackContract,new()
+    public abstract class CommunicatorProviderBase<TServiceContract, TAuthenticationUser, TSerializedSendType> : CommunicatorBase<TServiceContract, TSerializedSendType> where TServiceContract : ICallbackContract,new() where TAuthenticationUser : new()
     {
         protected IAuthenticator Authenticator;
         protected string[] RequiredAuthenticationRoles;
 
         private List<Tuple<AuthenticationResult,string>> AuthenticationResults { get;} = new List<Tuple<AuthenticationResult,string>>();
-        private Dictionary<NetConnection,string> PendingAndLoggedInUsers { get; } = new Dictionary<NetConnection, string>();
+        protected Dictionary<NetConnection,CommunicationUser<TAuthenticationUser>> PendingAndLoggedInUsers { get; } = new Dictionary<NetConnection, CommunicationUser<TAuthenticationUser>>();
         private Stopwatch TickWatch { get; } = new Stopwatch();
 
         protected CommunicatorProviderBase(NetPeerConfiguration configuration,ConverterBase<TSerializedSendType> converter, IAuthenticator authenticator = null, string[] requiredAuthenticationRoles = null)
@@ -114,12 +114,16 @@ namespace Lidgren.Network.ContractCommunication
             {
                 Log($"Tick loop is working overhead at {elapsedTime}ms, configured interval is at {interval}ms");
             }
+            var connected = NetConnector.Connections.Count;
+            var users = PendingAndLoggedInUsers.Count;
+            if(connected != users)
+                Log($"Connections {connected} users {users}");
             TickWatch.Restart();
         }
 
         protected override void OnDisconnected_Internal(NetConnection connection)
         {
-            Log("removing user...");
+            Log($"removing user: {PendingAndLoggedInUsers[connection].UserName}");
             PendingAndLoggedInUsers.Remove(connection);
         }
         protected override void OnDisconnected(NetConnection connection)
@@ -140,25 +144,31 @@ namespace Lidgren.Network.ContractCommunication
             var connection = msg.SenderConnection;
             var user = msg.ReadString().ToLower();
             var password = msg.ReadString();
-            if (PendingAndLoggedInUsers.Values.Contains(user))
+            if (PendingAndLoggedInUsers.Values.Any(c => c.UserName == user))
             {
                 AuthenticationResults.Add(new Tuple<AuthenticationResult, string>(
-                    new AuthenticationResult() {Connection = msg.SenderConnection, Success = false}, user));
+                    new AuthenticationResult() {Connection = connection, Success = false}, user));
                 return;
             }
-            PendingAndLoggedInUsers.Add(connection,user);
+            PendingAndLoggedInUsers.Add(connection,new CommunicationUser<TAuthenticationUser>(){UserName = user});
 
             var authTask = Authenticator.Authenticate(user, password)
                 .ContinueWith( async approval=>
                 {
                     var authentication = await approval;
-                    ConnectionApprovalExtras(authentication);
                     authentication.Connection = connection;
+
+                    ConnectionApprovalExtras(authentication);
+                    if (authentication.Success && !string.IsNullOrEmpty(authentication.UserId))
+                    {
+                        PendingAndLoggedInUsers[connection].UserData = await GetUser(authentication.UserId);
+                    }
                     AuthenticationResults.Add(new Tuple<AuthenticationResult,string>(authentication,user));
                 });
             AddRunningTask(authTask);
         }
 
+        protected abstract Task<TAuthenticationUser> GetUser(string id);
         protected virtual void ConnectionApprovalExtras(AuthenticationResult authenticationResult)
         {
             
@@ -169,7 +179,7 @@ namespace Lidgren.Network.ContractCommunication
         }
         protected virtual void OnAuthenticationDenied(AuthenticationResult authenticationResult,string user)
         {
-            
+            PendingAndLoggedInUsers.Remove(authenticationResult.Connection);
         }
     }
 }

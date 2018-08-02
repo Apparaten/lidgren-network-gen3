@@ -61,11 +61,7 @@ namespace Lidgren.Network.ContractCommunication
         private Dictionary<string, ushort> GetAddresses(Type type)
         {
             var addresses = new Dictionary<string, ushort>();
-            //const BindingFlags flags = BindingFlags.Public | BindingFlags.FlattenHierarchy | BindingFlags.Instance;
-
-            //var methods = new List<MethodInfo>(type.GetMethods(flags).OrderByDescending(m => m.Name));
             var methods = type.GetMethods();
-            //var aaa = type.GetMethod("asd");
             var addressIndexer = default(ushort);
             foreach (var methodInfo in methods)
             {
@@ -78,9 +74,6 @@ namespace Lidgren.Network.ContractCommunication
         {
             var interfaces = mapObject.GetType().GetInterfaces();
             var contract = interfaces.First(@interface => inheritedType.IsAssignableFrom(@interface) && @interface != inheritedType);
-
-            //const BindingFlags flags = BindingFlags.Public | BindingFlags.FlattenHierarchy | BindingFlags.Instance;
-
             var methods = new List<MethodInfo>(contract.GetMethods(/*flags*/).OrderByDescending(m => m.Name));
 
             var addresses = GetAddresses(contract);
