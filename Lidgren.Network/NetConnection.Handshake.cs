@@ -14,7 +14,7 @@ namespace Lidgren.Network
 		internal bool m_connectRequested;
 		internal bool m_disconnectRequested;
 		internal bool m_disconnectReqSendBye;
-		internal string m_disconnectMessage;
+		//internal string m_disconnectMessage;
 		internal bool m_connectionInitiator;
 		internal NetIncomingMessage m_remoteHailMessage;
 		internal double m_lastHandshakeSendTime;
@@ -31,7 +31,7 @@ namespace Lidgren.Network
 			m_peer.VerifyNetworkThread();
 
 			if (m_disconnectRequested)
-				ExecuteDisconnect(m_disconnectMessage, true);
+				ExecuteDisconnect(NetConnectionResult.RequestedDisconnect, true);
 
 			if (m_connectRequested)
 			{
@@ -40,7 +40,7 @@ namespace Lidgren.Network
 					case NetConnectionStatus.Connected:
 					case NetConnectionStatus.RespondedConnect:
 						// reconnect
-						ExecuteDisconnect("Reconnecting", true);
+						ExecuteDisconnect(NetConnectionResult.Reconnecting, true);
 						break;
 
 					case NetConnectionStatus.InitiatedConnect:
@@ -69,7 +69,7 @@ namespace Lidgren.Network
 				if (m_handshakeAttempts >= m_peerConfiguration.m_maximumHandshakeAttempts)
 				{
 					// failed to connect
-					ExecuteDisconnect("Failed to establish connection - no response from remote host", true);
+					ExecuteDisconnect(NetConnectionResult.NoResponseFromRemoteHost, true);
 					return;
 				}
 
@@ -95,7 +95,7 @@ namespace Lidgren.Network
 			}
 		}
 
-		internal void ExecuteDisconnect(string reason, bool sendByeMessage)
+		internal void ExecuteDisconnect(NetConnectionResult reason, bool sendByeMessage)
 		{
 			m_peer.VerifyNetworkThread();
 
@@ -152,7 +152,7 @@ namespace Lidgren.Network
 
 			if (m_handshakeAttempts > 1)
 				m_peer.LogDebug("Resending Connect...");
-			SetStatus(NetConnectionStatus.InitiatedConnect, "Locally requested connect");
+			SetStatus(NetConnectionStatus.InitiatedConnect, NetConnectionResult.LocallyRequestedConnect);
 		}
 
 		internal void SendConnectResponse(double now, bool onLibraryThread)
@@ -179,15 +179,16 @@ namespace Lidgren.Network
 			if (m_handshakeAttempts > 1)
 				m_peer.LogDebug("Resending ConnectResponse...");
 
-			SetStatus(NetConnectionStatus.RespondedConnect, "Remotely requested connect");
+			SetStatus(NetConnectionStatus.RespondedConnect, NetConnectionResult.RespondedConnect);
 		}
 
-		internal void SendDisconnect(string reason, bool onLibraryThread)
+		internal void SendDisconnect(NetConnectionResult reason, bool onLibraryThread)
 		{
 			if (onLibraryThread)
 				m_peer.VerifyNetworkThread();
 
-			NetOutgoingMessage om = m_peer.CreateMessage(reason);
+			NetOutgoingMessage om = m_peer.CreateMessage();
+            om.Write((byte)reason);
 			om.m_messageType = NetMessageType.Disconnect;
 			Interlocked.Increment(ref om.m_recyclingCount);
 			if (onLibraryThread)
@@ -221,7 +222,7 @@ namespace Lidgren.Network
 
 			InitializePing();
 			if (m_status != NetConnectionStatus.Connected)
-				SetStatus(NetConnectionStatus.Connected, "Connected to " + NetUtility.ToHexString(m_remoteUniqueIdentifier));
+				SetStatus(NetConnectionStatus.Connected, NetConnectionResult.Connected);
 		}
 
 		/// <summary>
@@ -262,14 +263,14 @@ namespace Lidgren.Network
 		/// </summary>
 		public void Deny()
 		{
-			Deny(string.Empty);
+			Deny(NetConnectionResult.Unknown);
 		}
 
 		/// <summary>
 		/// Denies this connection; disconnecting it
 		/// </summary>
 		/// <param name="reason">The stated reason for the disconnect, readable as a string in the StatusChanged message on the remote host</param>
-		public void Deny(string reason)
+		public void Deny(NetConnectionResult reason)
 		{
 			// send disconnect; remove from handshakes
 			SendDisconnect(reason, false);
@@ -312,7 +313,7 @@ namespace Lidgren.Network
 								appMsg.m_senderEndPoint = this.m_remoteEndPoint;
 								if (m_remoteHailMessage != null)
 									appMsg.Write(m_remoteHailMessage.m_data, 0, m_remoteHailMessage.LengthBytes);
-								SetStatus(NetConnectionStatus.RespondedAwaitingApproval, "Awaiting approval");
+								SetStatus(NetConnectionStatus.RespondedAwaitingApproval, NetConnectionResult.AwaitingApproval);
 								m_peer.ReleaseMessage(appMsg);
 								return;
 							}
@@ -363,18 +364,18 @@ namespace Lidgren.Network
 
 							m_peer.AcceptConnection(this);
 							InitializePing();
-							SetStatus(NetConnectionStatus.Connected, "Connected to " + NetUtility.ToHexString(m_remoteUniqueIdentifier));
+							SetStatus(NetConnectionStatus.Connected, NetConnectionResult.Connected);
 							return;
 					}
 					break;
 
 				case NetMessageType.Disconnect:
 					// ouch
-					string reason = "Ouch";
+				    var reason = NetConnectionResult.Unknown;
 					try
 					{
 						NetIncomingMessage inc = m_peer.SetupReadHelperMessage(ptr, payloadLength);
-						reason = inc.ReadString();
+						reason = (NetConnectionResult)inc.ReadByte();
 					}
 					catch
 					{
@@ -459,7 +460,7 @@ namespace Lidgren.Network
 
 				if (remoteAppIdentifier != m_peer.m_configuration.AppIdentifier)
 				{
-					ExecuteDisconnect("Wrong application identifier!", true);
+					ExecuteDisconnect(NetConnectionResult.WrongApplicationIdentifier, true);
 					return false;
 				}
 
@@ -468,7 +469,7 @@ namespace Lidgren.Network
 			catch(Exception ex)
 			{
 				// whatever; we failed
-				ExecuteDisconnect("Handshake data validation failed", true);
+				ExecuteDisconnect(NetConnectionResult.HandshakeDataValidationFailed, true);
 				m_peer.LogWarning("ReadRemoteHandshakeData failed: " + ex.Message);
 				return false;
 			}
@@ -479,17 +480,16 @@ namespace Lidgren.Network
 		/// Disconnect from the remote peer
 		/// </summary>
 		/// <param name="byeMessage">the message to send with the disconnect message</param>
-		public void Disconnect(string byeMessage)
+		public void Disconnect()
 		{
 			// user or library thread
 			if (m_status == NetConnectionStatus.None || m_status == NetConnectionStatus.Disconnected)
 				return;
 
 			m_peer.LogVerbose("Disconnect requested for " + this);
-			m_disconnectMessage = byeMessage;
 
 			if (m_status != NetConnectionStatus.Disconnected && m_status != NetConnectionStatus.None)
-				SetStatus(NetConnectionStatus.Disconnecting, byeMessage);
+				SetStatus(NetConnectionStatus.Disconnecting, NetConnectionResult.RequestedDisconnect);
 
 			m_handshakeAttempts = 0;
 			m_disconnectRequested = true;

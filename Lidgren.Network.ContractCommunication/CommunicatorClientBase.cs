@@ -59,8 +59,8 @@ namespace Lidgren.Network.ContractCommunication
                         break;
                     case NetIncomingMessageType.StatusChanged:
                         var change = (NetConnectionStatus)msg.ReadByte();
-                        Console.WriteLine(msg.ReadString());
-                        OnConnectionStatusChanged(change,msg.SenderConnection);
+                        var connectionResult = (NetConnectionResult) msg.ReadByte();
+                        OnConnectionStatusChanged(change,connectionResult,msg.SenderConnection);
                         break;
                     case NetIncomingMessageType.UnconnectedData:
                         break;
@@ -89,10 +89,10 @@ namespace Lidgren.Network.ContractCommunication
             Task.Delay(interval).Wait();
         }
 
-        public override void CloseConnection(string closeMessage = "")
+        public override void CloseConnection()
         {
-            NetConnector.Connections.FirstOrDefault()?.Disconnect(closeMessage);
-            NetConnector.Shutdown(closeMessage);
+            NetConnector.Connections.FirstOrDefault()?.Disconnect();
+            NetConnector.Shutdown("shutdown");
         }
     }
 }

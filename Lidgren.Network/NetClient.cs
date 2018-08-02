@@ -110,8 +110,7 @@ namespace Lidgren.Network
 		/// <summary>
 		/// Disconnect from server
 		/// </summary>
-		/// <param name="byeMessage">reason for disconnect</param>
-		public void Disconnect(string byeMessage)
+		public void Disconnect()
 		{
 			NetConnection serverConnection = ServerConnection;
 			if (serverConnection == null)
@@ -122,7 +121,7 @@ namespace Lidgren.Network
 					{
 						LogVerbose("Aborting connection attempt");
 						foreach(var hs in m_handshakes)
-							hs.Value.Disconnect(byeMessage);
+							hs.Value.Disconnect();
 						return;
 					}
 				}
@@ -130,7 +129,7 @@ namespace Lidgren.Network
 				LogWarning("Disconnect requested when not connected!");
 				return;
 			}
-			serverConnection.Disconnect(byeMessage);
+			serverConnection.Disconnect();
 		}
 
 		/// <summary>

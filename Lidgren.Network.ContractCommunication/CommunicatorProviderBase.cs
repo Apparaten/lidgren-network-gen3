@@ -56,7 +56,8 @@ namespace Lidgren.Network.ContractCommunication
                         break;
                     case NetIncomingMessageType.StatusChanged:
                         var change = (NetConnectionStatus)msg.ReadByte();
-                        OnConnectionStatusChanged(change,msg.SenderConnection);
+                        var connectionResult = (NetConnectionResult) msg.ReadByte();
+                        OnConnectionStatusChanged(change,connectionResult,msg.SenderConnection);
                         break;
                     case NetIncomingMessageType.UnconnectedData:
                         break;
@@ -96,7 +97,9 @@ namespace Lidgren.Network.ContractCommunication
                 }
                 else
                 {
-                    result.Connection.Deny();
+                    result.Connection.Deny(result.RequestState == RequestState.EndpointFailure
+                        ? NetConnectionResult.NoResponseFromRemoteHost
+                        : NetConnectionResult.WrongCredentials);
                     OnAuthenticationDenied(result, user);
                 }
                 AuthenticationResults.Remove(AuthenticationResults[0]);

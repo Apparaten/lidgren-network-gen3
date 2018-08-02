@@ -26,7 +26,7 @@ namespace Lidgren.Network.ContractCommunication
         
         protected ConverterBase<TSerializedSendType> Converter;
 
-        public event Action<NetConnectionStatus> OnConnectionStatusChangedEvent;
+        public event Action<NetConnectionStatus,NetConnectionResult> OnConnectionStatusChangedEvent;
         private List<Tuple<Object, string>> _logList = new List<Tuple<object, string>>();
         private event Action<object, string> _onLoggedEvent;
         public event Action<object, string> OnLoggedEvent
@@ -211,16 +211,16 @@ namespace Lidgren.Network.ContractCommunication
             
         }
 
-        public virtual void CloseConnection(string closeMessage = "")
+        public virtual void CloseConnection()
         {
-            NetConnector.Shutdown(closeMessage);
+            NetConnector.Shutdown("shutdown");
         }
 
         
-        protected virtual void OnConnectionStatusChanged(NetConnectionStatus status, NetConnection connection)
+        protected virtual void OnConnectionStatusChanged(NetConnectionStatus status,NetConnectionResult connectionResult, NetConnection connection)
         {
             ConnectionStatus = status;
-            OnConnectionStatusChangedEvent?.Invoke(status);
+            OnConnectionStatusChangedEvent?.Invoke(status,connectionResult);
             switch (status)
             {
                 case NetConnectionStatus.None:

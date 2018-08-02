@@ -45,7 +45,7 @@
     </DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE;__CONSTRAINED__</DefineConstants>
+    <DefineConstants>TRACE;__CONSTRAINED__ UNITY UNITY_IOS</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <CodeAnalysisRuleSet>AllRules.ruleset</CodeAnalysisRuleSet>
@@ -96,6 +96,7 @@
     <Compile Include="NetConnection.Handshake.cs" />
     <Compile Include="NetConnection.Latency.cs" />
     <Compile Include="NetConnection.MTU.cs" />
+    <Compile Include="NetConnectionResult.cs" />
     <Compile Include="NetConnectionStatistics.cs" />
     <Compile Include="NetConnectionStatus.cs" />
     <Compile Include="NetConstants.cs" />

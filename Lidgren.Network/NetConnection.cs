@@ -113,13 +113,11 @@ namespace Lidgren.Network
 			m_timeoutDeadline = now + m_peerConfiguration.m_connectionTimeout;
 		}
 
-		internal void SetStatus(NetConnectionStatus status, string reason)
+		internal void SetStatus(NetConnectionStatus status,NetConnectionResult reason)
 		{
 			// user or library thread
 
 			m_status = status;
-			if (reason == null)
-				reason = string.Empty;
 
 			if (m_status == NetConnectionStatus.Connected)
 			{
@@ -131,11 +129,11 @@ namespace Lidgren.Network
 			{
 				if (m_outputtedStatus != status)
 				{
-					NetIncomingMessage info = m_peer.CreateIncomingMessage(NetIncomingMessageType.StatusChanged, 4 + reason.Length + (reason.Length > 126 ? 2 : 1));
+					NetIncomingMessage info = m_peer.CreateIncomingMessage(NetIncomingMessageType.StatusChanged,1);
 					info.m_senderConnection = this;
 					info.m_senderEndPoint = m_remoteEndPoint;
 					info.Write((byte)m_status);
-					info.Write(reason);
+					info.Write((byte)reason);
 					m_peer.ReleaseMessage(info);
 					m_outputtedStatus = status;
 				}
@@ -162,7 +160,7 @@ namespace Lidgren.Network
 					// connection timed out
 					//
 					m_peer.LogVerbose("Connection timed out at " + now + " deadline was " + m_timeoutDeadline);
-					ExecuteDisconnect("Connection timed out", true);
+					ExecuteDisconnect(NetConnectionResult.ConnectionTimeOut, true);
 					return;
 				}
 
@@ -178,7 +176,7 @@ namespace Lidgren.Network
 
 				if (m_disconnectRequested)
 				{
-					ExecuteDisconnect(m_disconnectMessage, m_disconnectReqSendBye);
+					ExecuteDisconnect(NetConnectionResult.RequestedDisconnect, m_disconnectReqSendBye);
 					return;
 				}
 			}
@@ -437,7 +435,6 @@ namespace Lidgren.Network
 					NetIncomingMessage msg = m_peer.SetupReadHelperMessage(ptr, payloadLength);
 
 					m_disconnectRequested = true;
-					m_disconnectMessage = msg.ReadString();
 					m_disconnectReqSendBye = false;
 					//ExecuteDisconnect(msg.ReadString(), false);
 					break;
@@ -570,7 +567,7 @@ namespace Lidgren.Network
 
 		internal void Shutdown(string reason)
 		{
-			ExecuteDisconnect(reason, true);
+			ExecuteDisconnect(NetConnectionResult.ShutDown, true);
 		}
 
 		/// <summary>
