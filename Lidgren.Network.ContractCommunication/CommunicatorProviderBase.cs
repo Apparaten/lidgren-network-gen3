@@ -10,7 +10,7 @@ using Lidgren.Network;
 
 namespace Lidgren.Network.ContractCommunication
 {
-    public abstract class CommunicatorProviderBase<TServiceContract, TAuthenticationUser, TSerializedSendType> : CommunicatorBase<TServiceContract, TSerializedSendType> where TServiceContract : ICallbackContract,new() where TAuthenticationUser : new()
+    public abstract class CommunicatorProviderBase<TServiceContract, TAuthenticationUser, TSerializedSendType> : CommunicatorBase<TServiceContract> where TServiceContract : ICallbackContract,new() where TAuthenticationUser : new()
     {
         protected IAuthenticator Authenticator;
         protected string[] RequiredAuthenticationRoles;
@@ -19,7 +19,7 @@ namespace Lidgren.Network.ContractCommunication
         protected Dictionary<NetConnection,CommunicationUser<TAuthenticationUser>> PendingAndLoggedInUsers { get; } = new Dictionary<NetConnection, CommunicationUser<TAuthenticationUser>>();
         private Stopwatch TickWatch { get; } = new Stopwatch();
 
-        protected CommunicatorProviderBase(NetPeerConfiguration configuration,ConverterBase<TSerializedSendType> converter, IAuthenticator authenticator = null, string[] requiredAuthenticationRoles = null)
+        protected CommunicatorProviderBase(NetPeerConfiguration configuration,ConverterBase converter, IAuthenticator authenticator = null, string[] requiredAuthenticationRoles = null)
         {
             Configuration = configuration;
             Converter = converter;

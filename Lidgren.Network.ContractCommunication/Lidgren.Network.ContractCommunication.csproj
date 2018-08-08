@@ -44,6 +44,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ClassBuilder.cs" />
+    <Compile Include="CommunicationType.cs" />
     <Compile Include="CommunicationUser.cs" />
     <Compile Include="CommunicatorBase.cs" />
     <Compile Include="CommunicatorClientBase.cs" />

@@ -7,11 +7,11 @@ using System.Threading.Tasks;
 
 namespace Lidgren.Network.ContractCommunication
 {
-    public abstract class CommunicatorClientBase<TServiceContract, TSerializedSendType> : CommunicatorBase<TServiceContract,TSerializedSendType> where TServiceContract : IProviderContract,new ()
+    public abstract class CommunicatorClientBase<TServiceContract> : CommunicatorBase<TServiceContract> where TServiceContract : IProviderContract,new ()
     {
         private string _host;
         private int _port;
-        protected CommunicatorClientBase(NetPeerConfiguration configuration,ConverterBase<TSerializedSendType> converter, string host, int port)
+        protected CommunicatorClientBase(NetPeerConfiguration configuration,ConverterBase converter, string host, int port)
         {
             Converter = converter;
             _host = host;

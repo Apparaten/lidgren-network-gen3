@@ -7,24 +7,23 @@ using System.Threading.Tasks;
 
 namespace Lidgren.Network.ContractCommunication
 {
-    public abstract class CommunicatorBase<TServiceContract,TSerializedSendType> where TServiceContract : IContract,new()
+    public abstract class CommunicatorBase<TServiceContract> where TServiceContract : IContract,new()
     {
 
         protected Dictionary<ushort, MessageFilter> _recieveFilters { get; private set; }
         protected Dictionary<ushort, MessageFilter> _sendFilters { get; private set; }
 
         protected Dictionary<string, ushort> _sendAddressDictionary { get; private set; }
-        protected List<Task> RunningTasks = new List<Task>();
+        protected List<TaskJob> RunningTasks = new List<TaskJob>();
         public int CurrentTaskCount => RunningTasks.Count;
         public TServiceContract Contract { get; private set; }
 
         protected NetPeer NetConnector;
-        protected NetConnection CallerConnection;
         protected NetPeerConfiguration Configuration;
 
         public NetConnectionStatus ConnectionStatus { get; protected set; }
         
-        protected ConverterBase<TSerializedSendType> Converter;
+        protected ConverterBase Converter;
 
         public event Action<NetConnectionStatus,NetConnectionResult> OnConnectionStatusChangedEvent;
         private List<Tuple<Object, string>> _logList = new List<Tuple<object, string>>();
@@ -123,14 +122,11 @@ namespace Lidgren.Network.ContractCommunication
         public void Call<T1,T2,T3,T4,T5,T6,T7,T8,T9>(Func<T1,T2,T3,T4,T5,T6,T7,T8,T9, NetConnection, Task> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5,T6 arg6,T7 arg7,T8 arg8,T9 arg9, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] {arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9});
         public void Call<T1,T2,T3,T4,T5,T6,T7,T8,T9,T10>(Func<T1,T2,T3,T4,T5,T6,T7,T8,T9,T10, NetConnection, Task> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5,T6 arg6,T7 arg7,T8 arg8,T9 arg9,T10 arg10, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] {arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9,arg10});
 
+        public Task<TReturn> AwaitCall<TReturn>(Func<NetConnection, Task<TReturn>> method, NetConnection connection = null) => CreateAndSendAwaitableCall<TReturn>(method.Method,null,connection);
 
         private void CreateAndSendCall(MethodInfo info, object[] args = null, NetConnection recipient = null)
         {
-            var callMessage =
-                Converter.CreateSendCallMessage(_sendAddressDictionary[info.Name], info.GetParameters(), args);
-            var netMessage = NetConnector.CreateMessage();
-            netMessage.Write(callMessage.Key);
-            netMessage.Write(Converter.SerializeCallMessage(callMessage));
+            var netMessage = CreateMessage(info, CommunicationType.FireAndForget, args);
             if (recipient == null)
             {
                 (NetConnector as NetClient)?.SendMessage(netMessage, NetDeliveryMethod.ReliableOrdered);
@@ -141,35 +137,129 @@ namespace Lidgren.Network.ContractCommunication
             }
         }
 
+        private NetOutgoingMessage CreateMessage(MethodInfo info, CommunicationType type,object[] args = null)
+        {
+            Console.WriteLine("create message...");
+            var callMessage =
+                Converter.CreateSendCallMessage(_sendAddressDictionary[info.Name], info.GetParameters(), args);
+            var netMessage = NetConnector.CreateMessage();
+            netMessage.Write((byte)type);
+            netMessage.Write(callMessage.Key);
+            netMessage.Write(Converter.SerializeCallMessage(callMessage));
+            return netMessage;
+        }
+
+        private class AwaitingCallJob
+        {
+            public Type ReturnType { get; set; }
+            public object Data { get; set; }
+        }
+        private Dictionary<string,AwaitingCallJob> AwaitingCalls = new Dictionary<string, AwaitingCallJob>();
+        private Task<TReturn> CreateAndSendAwaitableCall<TReturn>(MethodInfo info, object[] args = null,
+            NetConnection recipient = null)
+        {
+            var netMessage = CreateMessage(info, CommunicationType.Awaitable, args);
+            var taskKey = Guid.NewGuid().ToString();
+            netMessage.Write(taskKey);
+
+            if (recipient == null)
+            {
+                (NetConnector as NetClient)?.SendMessage(netMessage, NetDeliveryMethod.ReliableOrdered);
+            }
+            else
+            {
+                (NetConnector as NetServer)?.SendMessage(netMessage, recipient, NetDeliveryMethod.ReliableOrdered, 0);
+            }
+
+            return Task.Run((() =>
+            {
+                
+                AwaitingCalls.Add(taskKey, new AwaitingCallJob(){ReturnType = typeof(TReturn),Data = null});
+                while (true)
+                {
+                    if (AwaitingCalls[taskKey].Data != null)
+                        break;
+                }
+                var data = (TReturn) AwaitingCalls[taskKey].Data;
+                AwaitingCalls.Remove(taskKey);
+                return data;
+            }));
+        }
+
+        private void SendAwaitedReturnMessage(string identifier, object result, NetConnection connection)
+        {
+            var netMessage = NetConnector.CreateMessage();
+            netMessage.Write((byte)CommunicationType.AwaitableReturn);
+            netMessage.Write(identifier);
+            netMessage.Write(Converter.SerializeArgument(result,result.GetType()));
+            if (NetConnector is NetServer server)
+            {
+                server.SendMessage(netMessage, connection, NetDeliveryMethod.ReliableOrdered, 0);
+            }
+            else
+            {
+                (NetConnector as NetClient)?.SendMessage(netMessage, NetDeliveryMethod.ReliableOrdered);
+            }
+        }
         protected void FilterMessage(NetIncomingMessage message)
         {
+            var messageType = (CommunicationType)message.ReadByte();
+            if (messageType == CommunicationType.AwaitableReturn)
+            {
+                var identifier = message.ReadString();
+                var awaitingCall = AwaitingCalls[identifier];
+                awaitingCall.Data = Converter.DeserializeArgument(message.ReadString(), awaitingCall.ReturnType);
+                return;
+            }
             var key = message.ReadUInt16();
             var pointer = _recieveFilters[key];
             var args = Converter.HandleRecieveMessage(message.ReadString(), pointer,message.SenderConnection);
-            CallerConnection = message.SenderConnection;
-            try
+            switch (messageType)
             {
-                if (pointer.Method.ReturnType == typeof(Task))
-                {
-                    AddRunningTask((Task)pointer.Method.Invoke(this,args));
-                }
-                else
-                {
-                    pointer.Method.Invoke(this, args);
-                }
+                case CommunicationType.FireAndForget:
+                    try
+                    {
+                        if (pointer.Method.ReturnType == typeof(Task))
+                        {
+                            AddRunningTask((Task)pointer.Method.Invoke(this, args));
+                        }
+                        else
+                        {
+                            pointer.Method.Invoke(this, args);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log(ex.InnerException ?? ex);
+                    }
+                    break;
+                case CommunicationType.Awaitable:
+                    try
+                    {
+                        var taskKey = message.ReadString();
+                        AddRunningTask((Task)pointer.Method.Invoke(this,args),pointer.Method.ReturnType,taskKey,message.SenderConnection);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log(ex.InnerException ?? ex);
+                    }
+                    break;
+                case CommunicationType.AwaitableReturn:
+
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
             }
-            catch (Exception ex)
-            {
-                Log(ex.InnerException ?? ex);
-            }
+            
         }
 
         protected void RunTasks()
         {
             for (var i = RunningTasks.Count; i-- > 0;)
             {
-                var t = RunningTasks[i];
-                switch (t.Status)
+                var job = RunningTasks[i];
+                var task = (Task) job.Task;
+                switch (task.Status)
                 {
                     case TaskStatus.Created:
                         break;
@@ -182,17 +272,31 @@ namespace Lidgren.Network.ContractCommunication
                     case TaskStatus.WaitingForChildrenToComplete:
                         break;
                     case TaskStatus.RanToCompletion:
-                        RunningTasks.Remove(t);
+                        RunningTasks.Remove(job);
+                        var type = job.TaskType;
+                        if (type == null)
+                        {
+                            
+                        }
+                        else if (type == typeof(Task))
+                        {
+                            
+                        }
+                        else
+                        {
+                            var asd = job.Task.GetType().GetProperty("Result").GetValue(job.Task, null);
+                            SendAwaitedReturnMessage(job.Identifier,asd,job.Reciever);
+                        }
                         break;
                     case TaskStatus.Canceled:
-                        RunningTasks.Remove(t);
-                        if(t.Exception != null)
-                            ExceptionsCaught.Add(t.Exception);
+                        RunningTasks.Remove(job);
+                        if(task.Exception != null)
+                            ExceptionsCaught.Add(task.Exception);
                         break;
                     case TaskStatus.Faulted:
-                        RunningTasks.Remove(t);
-                        if (t.Exception != null)
-                            ExceptionsCaught.Add(t.Exception);
+                        RunningTasks.Remove(job);
+                        if (task.Exception != null)
+                            ExceptionsCaught.Add(task.Exception);
                         break;
                 }
             }
@@ -202,9 +306,9 @@ namespace Lidgren.Network.ContractCommunication
             _onLoggedEvent?.Invoke(message.ToString(),caller);
             _logList.Add(new Tuple<object, string>(message, caller));
         }
-        protected void AddRunningTask(Task task)
+        protected void AddRunningTask(Task task,Type taskType = null,string identifier = null,NetConnection reciever = null)
         {
-            RunningTasks.Add(task);
+            RunningTasks.Add(new TaskJob(){Task = task,TaskType = taskType,Identifier = identifier,Reciever = reciever});
         }
         public virtual void Tick(int interval)
         {
@@ -260,15 +364,23 @@ namespace Lidgren.Network.ContractCommunication
         public MethodInfo Method;
         public Type[] Types;
     }
-    public class CallMessage<T>
+    public class CallMessage
     {
         public ushort Key;
-        public T[] Args;
+        public string[] Args;
     }
 
     public class ContractHolder<T> where T : IContract
     {
         public T Contract;
         
+    }
+
+    public class TaskJob
+    {
+        public object Task { get; set; }
+        public Type TaskType { get; set; }
+        public string Identifier { get; set; }
+        public NetConnection Reciever { get; set; }
     }
 }
