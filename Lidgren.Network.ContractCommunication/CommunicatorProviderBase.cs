@@ -10,16 +10,17 @@ using Lidgren.Network;
 
 namespace Lidgren.Network.ContractCommunication
 {
-    public abstract class CommunicatorProviderBase<TServiceContract, TAuthenticationUser, TSerializedSendType> : CommunicatorBase<TServiceContract, TSerializedSendType> where TServiceContract : ICallbackContract,new() where TAuthenticationUser : new()
+    public abstract class CommunicatorProviderBase<TServiceContract, TAuthenticationUser, TSerializedSendType> : CommunicatorBase<TServiceContract, TSerializedSendType> where TServiceContract : ICallbackContract, new() where TAuthenticationUser : new()
     {
         protected IAuthenticator Authenticator;
         protected string[] RequiredAuthenticationRoles;
 
-        private List<Tuple<AuthenticationResult,string>> AuthenticationResults { get;} = new List<Tuple<AuthenticationResult,string>>();
-        protected Dictionary<NetConnection,CommunicationUser<TAuthenticationUser>> PendingAndLoggedInUsers { get; } = new Dictionary<NetConnection, CommunicationUser<TAuthenticationUser>>();
+        private List<Tuple<AuthenticationResult, string>> AuthenticationResults { get; } = new List<Tuple<AuthenticationResult, string>>();
+        protected Dictionary<NetConnection, CommunicationUser<TAuthenticationUser>> PendingAndLoggedInUsers { get; } = new Dictionary<NetConnection, CommunicationUser<TAuthenticationUser>>();
+
         private Stopwatch TickWatch { get; } = new Stopwatch();
 
-        protected CommunicatorProviderBase(NetPeerConfiguration configuration,ConverterBase<TSerializedSendType> converter, IAuthenticator authenticator = null, string[] requiredAuthenticationRoles = null)
+        protected CommunicatorProviderBase(NetPeerConfiguration configuration, ConverterBase<TSerializedSendType> converter, IAuthenticator authenticator = null, string[] requiredAuthenticationRoles = null)
         {
             Configuration = configuration;
             Converter = converter;
@@ -41,7 +42,7 @@ namespace Lidgren.Network.ContractCommunication
         }
 
         public override void Tick(int repeatRate)
-        {            
+        {
             NetIncomingMessage msg;
             while ((msg = NetConnector.ReadMessage()) != null)
             {
@@ -56,8 +57,8 @@ namespace Lidgren.Network.ContractCommunication
                         break;
                     case NetIncomingMessageType.StatusChanged:
                         var change = (NetConnectionStatus)msg.ReadByte();
-                        var connectionResult = (NetConnectionResult) msg.ReadByte();
-                        OnConnectionStatusChanged(change,connectionResult,msg.SenderConnection);
+                        var connectionResult = (NetConnectionResult)msg.ReadByte();
+                        OnConnectionStatusChanged(change, connectionResult, msg.SenderConnection);
                         break;
                     case NetIncomingMessageType.UnconnectedData:
                         break;
@@ -131,10 +132,6 @@ namespace Lidgren.Network.ContractCommunication
             {
                 Log($"Tick loop is working overhead at {elapsedTime}ms, configured interval is at {interval}ms");
             }
-            var connected = NetConnector.Connections.Count;
-            var users = PendingAndLoggedInUsers.Count;
-            if(connected != users)
-                Log($"Connections {connected} users {users}");
             TickWatch.Restart();
         }
 
@@ -145,7 +142,7 @@ namespace Lidgren.Network.ContractCommunication
         }
         protected override void OnDisconnected(NetConnection connection)
         {
-            
+
         }
 
         protected override void Log(object message, [CallerMemberName]string caller = null)
@@ -164,39 +161,56 @@ namespace Lidgren.Network.ContractCommunication
             if (PendingAndLoggedInUsers.Values.Any(c => c.UserName == user))
             {
                 AuthenticationResults.Add(new Tuple<AuthenticationResult, string>(
-                    new AuthenticationResult() {Connection = connection, Success = false,RequestState = RequestState.UserAlreadyLoggedIn}, user));
+                    new AuthenticationResult()
+                    {
+                        Connection = connection,
+                        Success = false,
+                        RequestState = RequestState.UserAlreadyLoggedIn
+                    }, user));
                 return;
             }
-            PendingAndLoggedInUsers.Add(connection,new CommunicationUser<TAuthenticationUser>(){UserName = user});
-
+            PendingAndLoggedInUsers.Add(connection, new CommunicationUser<TAuthenticationUser>() { UserName = user });
             var authTask = Authenticator.Authenticate(user, password)
-                .ContinueWith( async approval=>
-                {
-                    var authentication = await approval;
-                    authentication.Connection = connection;
+                .ContinueWith(async approval =>
+               {
+                   var authentication = await approval;
+                   authentication.Connection = connection;
 
-                    ConnectionApprovalExtras(authentication);
-                    if (authentication.Success && !string.IsNullOrEmpty(authentication.UserId))
-                    {
-                        PendingAndLoggedInUsers[connection].UserData = await GetUser(authentication.UserId);
-                    }
-                    AuthenticationResults.Add(new Tuple<AuthenticationResult,string>(authentication,user));
-                });
+                   ConnectionApprovalExtras(authentication);
+                   if (authentication.Success && !string.IsNullOrEmpty(authentication.UserId))
+                   {
+                        var userData = await GetUser(authentication.UserId);
+                        PendingAndLoggedInUsers[connection].UserData = userData;
+                   }
+                   AuthenticationResults.Add(new Tuple<AuthenticationResult, string>(authentication, user));
+               });
             AddRunningTask(authTask);
         }
 
         protected abstract Task<TAuthenticationUser> GetUser(string id);
         protected virtual void ConnectionApprovalExtras(AuthenticationResult authenticationResult)
         {
-            
+
         }
-        protected virtual void OnAuthenticationApproved(AuthenticationResult authenticationResult,string user)
+        protected virtual void OnAuthenticationApproved(AuthenticationResult authenticationResult, string user)
         {
-            
+
         }
-        protected virtual void OnAuthenticationDenied(AuthenticationResult authenticationResult,string user)
+        protected virtual void OnAuthenticationDenied(AuthenticationResult authenticationResult, string user)
         {
             PendingAndLoggedInUsers.Remove(authenticationResult.Connection);
+        }
+        protected void DoForUsers(Func<TAuthenticationUser, bool> predicate, Action<NetConnection, TAuthenticationUser> onConnectionAction)
+        {
+            foreach (var kv in PendingAndLoggedInUsers)
+            {
+                if (kv.Value.UserData == null) // user pending a log in - ignored...
+                    continue;
+                if (predicate(kv.Value.UserData))
+                {
+                    onConnectionAction(kv.Key, kv.Value.UserData);
+                }
+            }
         }
     }
 }
