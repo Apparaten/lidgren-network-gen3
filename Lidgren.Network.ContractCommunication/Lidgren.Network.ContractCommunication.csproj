@@ -44,6 +44,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ClassBuilder.cs" />
+    <Compile Include="CommunicationExceptions.cs" />
+    <Compile Include="CommunicationSettings.cs" />
     <Compile Include="CommunicationType.cs" />
     <Compile Include="CommunicationUser.cs" />
     <Compile Include="CommunicatorBase.cs" />
