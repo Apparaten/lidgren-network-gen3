@@ -10,17 +10,17 @@ namespace Lidgren.Network.ContractCommunication
     public abstract class CommunicatorBase<TServiceContract> where TServiceContract : IContract,new()
     {
 
-        protected Dictionary<ushort, MessageFilter> _recieveFilters { get; private set; }
-        protected Dictionary<ushort, MessageFilter> _sendFilters { get; private set; }
-
+        private Dictionary<ushort, MessageFilter> _recieveFilters { get;  set; }
+        private Dictionary<ushort, MessageFilter> _sendFilters { get;  set; }
         protected Dictionary<string, ushort> _sendAddressDictionary { get; private set; }
-        protected List<TaskJob> RunningTasks = new List<TaskJob>();
-        public int CurrentTaskCount => RunningTasks.Count;
+        private readonly Dictionary<string, AwaitingCallJob> _awaitingCalls = new Dictionary<string, AwaitingCallJob>();
+        private readonly List<TaskJob> _runningTasks = new List<TaskJob>();
+        public int CurrentTaskCount => _runningTasks.Count;
         public TServiceContract Contract { get; private set; }
 
         protected NetPeer NetConnector;
         protected NetPeerConfiguration Configuration;
-
+        protected CommunicationSettings CommunicationSettings = new CommunicationSettings();
         public NetConnectionStatus ConnectionStatus { get; protected set; }
         
         protected ConverterBase Converter;
@@ -87,46 +87,56 @@ namespace Lidgren.Network.ContractCommunication
             }
             return callbackFilters;
         }
-        public void Call(Action method, NetConnection connection = null) => CreateAndSendCall(method.Method, null, connection);
-        public void Call<T1>(Action<T1> method, T1 arg1, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] { arg1 }, connection);
-        public void Call<T1, T2>(Action<T1, T2> method, T1 arg1, T2 arg2, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] { arg1, arg2 }, connection);
-        public void Call<T1, T2, T3>(Action<T1, T2, T3> method, T1 arg1, T2 arg2, T3 arg3, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] { arg1, arg2, arg3 }, connection);
-        public void Call<T1, T2, T3, T4>(Action<T1, T2, T3,T4> method, T1 arg1, T2 arg2, T3 arg3, T4 arg4, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] { arg1, arg2, arg3, arg4 }, connection);
-        public void Call<T1, T2, T3, T4, T5>(Action<T1, T2, T3, T4, T5> method, T1 arg1, T2 arg2, T3 arg3, T4 arg4,T5 arg5, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] { arg1, arg2, arg3, arg4, arg5 }, connection);
-        public void Call<T1, T2, T3, T4, T5, T6>(Action<T1, T2, T3, T4, T5, T6> method, T1 arg1, T2 arg2, T3 arg3, T4 arg4,T5 arg5,T6 arg6, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] { arg1, arg2, arg3, arg4, arg5, arg6 }, connection);
-        public void Call<T1, T2, T3, T4, T5, T6, T7>(Action<T1, T2, T3, T4, T5, T6, T7> method, T1 arg1, T2 arg2, T3 arg3, T4 arg4,T5 arg5,T6 arg6, T7 arg7, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] { arg1, arg2, arg3, arg4, arg5, arg6, arg7 }, connection);
-        public void Call<T1, T2, T3, T4, T5, T6, T7, T8>(Action<T1, T2, T3, T4, T5, T6, T7, T8> method, T1 arg1, T2 arg2, T3 arg3, T4 arg4,T5 arg5,T6 arg6, T7 arg7, T8 arg8, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] { arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8 }, connection);
-        public void Call<T1, T2, T3, T4, T5, T6, T7, T8, T9>(Action<T1, T2, T3, T4, T5, T6, T7, T8, T9> method, T1 arg1, T2 arg2, T3 arg3, T4 arg4,T5 arg5,T6 arg6, T7 arg7, T8 arg8, T9 arg9, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] { arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9 }, connection);
-        public void Call<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>(Action<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10> method, T1 arg1, T2 arg2, T3 arg3, T4 arg4,T5 arg5,T6 arg6, T7 arg7, T8 arg8, T9 arg9, T10 arg10, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] { arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 }, connection);
+        public void Call(Action method, NetConnection connection = null) => CreateAndCall(method.Method, null, connection);
+        public void Call<T1>(Action<T1> method, T1 arg1, NetConnection connection = null) => CreateAndCall(method.Method, new object[] { arg1 }, connection);
+        public void Call<T1, T2>(Action<T1, T2> method, T1 arg1, T2 arg2, NetConnection connection = null) => CreateAndCall(method.Method, new object[] { arg1, arg2 }, connection);
+        public void Call<T1, T2, T3>(Action<T1, T2, T3> method, T1 arg1, T2 arg2, T3 arg3, NetConnection connection = null) => CreateAndCall(method.Method, new object[] { arg1, arg2, arg3 }, connection);
+        public void Call<T1, T2, T3, T4>(Action<T1, T2, T3,T4> method, T1 arg1, T2 arg2, T3 arg3, T4 arg4, NetConnection connection = null) => CreateAndCall(method.Method, new object[] { arg1, arg2, arg3, arg4 }, connection);
+        public void Call<T1, T2, T3, T4, T5>(Action<T1, T2, T3, T4, T5> method, T1 arg1, T2 arg2, T3 arg3, T4 arg4,T5 arg5, NetConnection connection = null) => CreateAndCall(method.Method, new object[] { arg1, arg2, arg3, arg4, arg5 }, connection);
+        public void Call<T1, T2, T3, T4, T5, T6>(Action<T1, T2, T3, T4, T5, T6> method, T1 arg1, T2 arg2, T3 arg3, T4 arg4,T5 arg5,T6 arg6, NetConnection connection = null) => CreateAndCall(method.Method, new object[] { arg1, arg2, arg3, arg4, arg5, arg6 }, connection);
+        public void Call<T1, T2, T3, T4, T5, T6, T7>(Action<T1, T2, T3, T4, T5, T6, T7> method, T1 arg1, T2 arg2, T3 arg3, T4 arg4,T5 arg5,T6 arg6, T7 arg7, NetConnection connection = null) => CreateAndCall(method.Method, new object[] { arg1, arg2, arg3, arg4, arg5, arg6, arg7 }, connection);
+        public void Call<T1, T2, T3, T4, T5, T6, T7, T8>(Action<T1, T2, T3, T4, T5, T6, T7, T8> method, T1 arg1, T2 arg2, T3 arg3, T4 arg4,T5 arg5,T6 arg6, T7 arg7, T8 arg8, NetConnection connection = null) => CreateAndCall(method.Method, new object[] { arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8 }, connection);
+        public void Call<T1, T2, T3, T4, T5, T6, T7, T8, T9>(Action<T1, T2, T3, T4, T5, T6, T7, T8, T9> method, T1 arg1, T2 arg2, T3 arg3, T4 arg4,T5 arg5,T6 arg6, T7 arg7, T8 arg8, T9 arg9, NetConnection connection = null) => CreateAndCall(method.Method, new object[] { arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9 }, connection);
+        public void Call<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>(Action<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10> method, T1 arg1, T2 arg2, T3 arg3, T4 arg4,T5 arg5,T6 arg6, T7 arg7, T8 arg8, T9 arg9, T10 arg10, NetConnection connection = null) => CreateAndCall(method.Method, new object[] { arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 }, connection);
         //default last parameter netConnection
-        public void Call(Action<NetConnection> method, NetConnection connection = null) => CreateAndSendCall(method.Method, null, connection);
-        public void Call<T1>(Action<T1, NetConnection> method, T1 arg1, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] { arg1 }, connection);
-        public void Call<T1,T2>(Action<T1,T2, NetConnection> method, T1 arg1,T2 arg2, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] { arg1,arg2 }, connection);
-        public void Call<T1,T2,T3>(Action<T1,T2,T3, NetConnection> method, T1 arg1,T2 arg2,T3 arg3, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] { arg1,arg2, arg3 }, connection);
-        public void Call<T1,T2,T3,T4>(Action<T1,T2,T3,T4, NetConnection> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] { arg1,arg2, arg3, arg4 }, connection);
-        public void Call<T1,T2,T3,T4,T5>(Action<T1,T2,T3,T4,T5, NetConnection> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] { arg1,arg2, arg3, arg4, arg5 }, connection);
-        public void Call<T1,T2,T3,T4,T5,T6>(Action<T1,T2,T3,T4,T5,T6, NetConnection> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5, T6 arg6, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] { arg1,arg2, arg3, arg4, arg5, arg6 }, connection);
-        public void Call<T1,T2,T3,T4,T5,T6,T7>(Action<T1,T2,T3,T4,T5,T6,T7, NetConnection> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5, T6 arg6, T7 arg7, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] { arg1,arg2, arg3, arg4, arg5, arg6, arg7 }, connection);
-        public void Call<T1,T2,T3,T4,T5,T6,T7,T8>(Action<T1,T2,T3,T4,T5,T6,T7,T8, NetConnection> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5, T6 arg6, T7 arg7,T8 arg8, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] { arg1,arg2, arg3, arg4, arg5, arg6, arg7, arg8 }, connection);
-        public void Call<T1,T2,T3,T4,T5,T6,T7,T8,T9>(Action<T1,T2,T3,T4,T5,T6,T7,T8,T9, NetConnection> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5, T6 arg6, T7 arg7,T8 arg8, T9 arg9, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] { arg1,arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9 }, connection);
-        public void Call<T1,T2,T3,T4,T5,T6,T7,T8,T9,T10>(Action<T1,T2,T3,T4,T5,T6,T7,T8,T9,T10, NetConnection> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5, T6 arg6, T7 arg7,T8 arg8, T9 arg9, T10 arg10, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] { arg1,arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 }, connection);
+        public void Call(Action<NetConnection> method, NetConnection connection = null) => CreateAndCall(method.Method, null, connection);
+        public void Call<T1>(Action<T1, NetConnection> method, T1 arg1, NetConnection connection = null) => CreateAndCall(method.Method, new object[] { arg1 }, connection);
+        public void Call<T1,T2>(Action<T1,T2, NetConnection> method, T1 arg1,T2 arg2, NetConnection connection = null) => CreateAndCall(method.Method, new object[] { arg1,arg2 }, connection);
+        public void Call<T1,T2,T3>(Action<T1,T2,T3, NetConnection> method, T1 arg1,T2 arg2,T3 arg3, NetConnection connection = null) => CreateAndCall(method.Method, new object[] { arg1,arg2, arg3 }, connection);
+        public void Call<T1,T2,T3,T4>(Action<T1,T2,T3,T4, NetConnection> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4, NetConnection connection = null) => CreateAndCall(method.Method, new object[] { arg1,arg2, arg3, arg4 }, connection);
+        public void Call<T1,T2,T3,T4,T5>(Action<T1,T2,T3,T4,T5, NetConnection> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5, NetConnection connection = null) => CreateAndCall(method.Method, new object[] { arg1,arg2, arg3, arg4, arg5 }, connection);
+        public void Call<T1,T2,T3,T4,T5,T6>(Action<T1,T2,T3,T4,T5,T6, NetConnection> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5, T6 arg6, NetConnection connection = null) => CreateAndCall(method.Method, new object[] { arg1,arg2, arg3, arg4, arg5, arg6 }, connection);
+        public void Call<T1,T2,T3,T4,T5,T6,T7>(Action<T1,T2,T3,T4,T5,T6,T7, NetConnection> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5, T6 arg6, T7 arg7, NetConnection connection = null) => CreateAndCall(method.Method, new object[] { arg1,arg2, arg3, arg4, arg5, arg6, arg7 }, connection);
+        public void Call<T1,T2,T3,T4,T5,T6,T7,T8>(Action<T1,T2,T3,T4,T5,T6,T7,T8, NetConnection> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5, T6 arg6, T7 arg7,T8 arg8, NetConnection connection = null) => CreateAndCall(method.Method, new object[] { arg1,arg2, arg3, arg4, arg5, arg6, arg7, arg8 }, connection);
+        public void Call<T1,T2,T3,T4,T5,T6,T7,T8,T9>(Action<T1,T2,T3,T4,T5,T6,T7,T8,T9, NetConnection> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5, T6 arg6, T7 arg7,T8 arg8, T9 arg9, NetConnection connection = null) => CreateAndCall(method.Method, new object[] { arg1,arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9 }, connection);
+        public void Call<T1,T2,T3,T4,T5,T6,T7,T8,T9,T10>(Action<T1,T2,T3,T4,T5,T6,T7,T8,T9,T10, NetConnection> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5, T6 arg6, T7 arg7,T8 arg8, T9 arg9, T10 arg10, NetConnection connection = null) => CreateAndCall(method.Method, new object[] { arg1,arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 }, connection);
         //Task with default last parameter netConnection
-        public void Call<T1>(Func<T1, NetConnection, Task> method, T1 arg1, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] {arg1});
-        public void Call<T1,T2>(Func<T1,T2, NetConnection, Task> method, T1 arg1,T2 arg2, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] {arg1,arg2});
-        public void Call<T1,T2,T3>(Func<T1,T2,T3, NetConnection, Task> method, T1 arg1,T2 arg2,T3 arg3, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] {arg1,arg2,arg3});
-        public void Call<T1,T2,T3,T4>(Func<T1,T2,T3,T4, NetConnection, Task> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] {arg1,arg2,arg3,arg4});
-        public void Call<T1,T2,T3,T4,T5>(Func<T1,T2,T3,T4,T5, NetConnection, Task> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] {arg1,arg2,arg3,arg4,arg5});
-        public void Call<T1,T2,T3,T4,T5,T6>(Func<T1,T2,T3,T4,T5,T6, NetConnection, Task> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5,T6 arg6, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] {arg1,arg2,arg3,arg4,arg5,arg6});
-        public void Call<T1,T2,T3,T4,T5,T6,T7>(Func<T1,T2,T3,T4,T5,T6,T7, NetConnection, Task> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5,T6 arg6,T7 arg7, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] {arg1,arg2,arg3,arg4,arg5,arg6,arg7});
-        public void Call<T1,T2,T3,T4,T5,T6,T7,T8>(Func<T1,T2,T3,T4,T5,T6,T7,T8, NetConnection, Task> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5,T6 arg6,T7 arg7,T8 arg8, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] {arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8});
-        public void Call<T1,T2,T3,T4,T5,T6,T7,T8,T9>(Func<T1,T2,T3,T4,T5,T6,T7,T8,T9, NetConnection, Task> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5,T6 arg6,T7 arg7,T8 arg8,T9 arg9, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] {arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9});
-        public void Call<T1,T2,T3,T4,T5,T6,T7,T8,T9,T10>(Func<T1,T2,T3,T4,T5,T6,T7,T8,T9,T10, NetConnection, Task> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5,T6 arg6,T7 arg7,T8 arg8,T9 arg9,T10 arg10, NetConnection connection = null) => CreateAndSendCall(method.Method, new object[] {arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9,arg10});
+        public void Call<T1>(Func<T1, NetConnection, Task> method, T1 arg1, NetConnection connection = null) => CreateAndCall(method.Method, new object[] {arg1});
+        public void Call<T1,T2>(Func<T1,T2, NetConnection, Task> method, T1 arg1,T2 arg2, NetConnection connection = null) => CreateAndCall(method.Method, new object[] {arg1,arg2});
+        public void Call<T1,T2,T3>(Func<T1,T2,T3, NetConnection, Task> method, T1 arg1,T2 arg2,T3 arg3, NetConnection connection = null) => CreateAndCall(method.Method, new object[] {arg1,arg2,arg3});
+        public void Call<T1,T2,T3,T4>(Func<T1,T2,T3,T4, NetConnection, Task> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4, NetConnection connection = null) => CreateAndCall(method.Method, new object[] {arg1,arg2,arg3,arg4});
+        public void Call<T1,T2,T3,T4,T5>(Func<T1,T2,T3,T4,T5, NetConnection, Task> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5, NetConnection connection = null) => CreateAndCall(method.Method, new object[] {arg1,arg2,arg3,arg4,arg5});
+        public void Call<T1,T2,T3,T4,T5,T6>(Func<T1,T2,T3,T4,T5,T6, NetConnection, Task> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5,T6 arg6, NetConnection connection = null) => CreateAndCall(method.Method, new object[] {arg1,arg2,arg3,arg4,arg5,arg6});
+        public void Call<T1,T2,T3,T4,T5,T6,T7>(Func<T1,T2,T3,T4,T5,T6,T7, NetConnection, Task> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5,T6 arg6,T7 arg7, NetConnection connection = null) => CreateAndCall(method.Method, new object[] {arg1,arg2,arg3,arg4,arg5,arg6,arg7});
+        public void Call<T1,T2,T3,T4,T5,T6,T7,T8>(Func<T1,T2,T3,T4,T5,T6,T7,T8, NetConnection, Task> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5,T6 arg6,T7 arg7,T8 arg8, NetConnection connection = null) => CreateAndCall(method.Method, new object[] {arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8});
+        public void Call<T1,T2,T3,T4,T5,T6,T7,T8,T9>(Func<T1,T2,T3,T4,T5,T6,T7,T8,T9, NetConnection, Task> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5,T6 arg6,T7 arg7,T8 arg8,T9 arg9, NetConnection connection = null) => CreateAndCall(method.Method, new object[] {arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9});
+        public void Call<T1,T2,T3,T4,T5,T6,T7,T8,T9,T10>(Func<T1,T2,T3,T4,T5,T6,T7,T8,T9,T10, NetConnection, Task> method, T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5,T6 arg6,T7 arg7,T8 arg8,T9 arg9,T10 arg10, NetConnection connection = null) => CreateAndCall(method.Method, new object[] {arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9,arg10});
 
-        public Task<TReturn> AwaitCall<TReturn>(Func<NetConnection, Task<TReturn>> method, NetConnection connection = null) => CreateAndSendAwaitableCall<TReturn>(method.Method,null,connection);
+        public Task<TReturn> CallAsync<TReturn>(Func<NetConnection, Task<TReturn>> method, NetConnection connection = null) => CreateAndCallAsync<TReturn>(method.Method,null,connection);
+        public Task<TReturn> CallAsync<T1,TReturn>(Func<T1, NetConnection, Task<TReturn>> method,T1 arg1, NetConnection connection = null) => CreateAndCallAsync<TReturn>(method.Method,new object[]{arg1},connection);
+        public Task<TReturn> CallAsync<T1,T2,TReturn>(Func<T1,T2, NetConnection, Task<TReturn>> method,T1 arg1,T2 arg2, NetConnection connection = null) => CreateAndCallAsync<TReturn>(method.Method,new object[]{arg1,arg2},connection);
+        public Task<TReturn> CallAsync<T1,T2,T3,TReturn>(Func<T1,T2,T3, NetConnection, Task<TReturn>> method,T1 arg1,T2 arg2,T3 arg3, NetConnection connection = null) => CreateAndCallAsync<TReturn>(method.Method,new object[]{arg1,arg2,arg3},connection);
+        public Task<TReturn> CallAsync<T1,T2,T3,T4,TReturn>(Func<T1,T2,T3,T4, NetConnection, Task<TReturn>> method,T1 arg1,T2 arg2,T3 arg3,T4 arg4, NetConnection connection = null) => CreateAndCallAsync<TReturn>(method.Method,new object[]{arg1,arg2,arg3,arg4},connection);
+        public Task<TReturn> CallAsync<T1,T2,T3,T4,T5,TReturn>(Func<T1,T2,T3,T4,T5, NetConnection, Task<TReturn>> method,T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5, NetConnection connection = null) => CreateAndCallAsync<TReturn>(method.Method,new object[]{arg1,arg2,arg3,arg4,arg5},connection);
+        public Task<TReturn> CallAsync<T1,T2,T3,T4,T5,T6,TReturn>(Func<T1,T2,T3,T4,T5,T6, NetConnection, Task<TReturn>> method,T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5,T6 arg6, NetConnection connection = null) => CreateAndCallAsync<TReturn>(method.Method,new object[]{arg1,arg2,arg3,arg4,arg5,arg6},connection);
+        public Task<TReturn> CallAsync<T1,T2,T3,T4,T5,T6,T7,TReturn>(Func<T1,T2,T3,T4,T5,T6,T7, NetConnection, Task<TReturn>> method,T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5,T6 arg6,T7 arg7, NetConnection connection = null) => CreateAndCallAsync<TReturn>(method.Method,new object[]{arg1,arg2,arg3,arg4,arg5,arg6,arg7},connection);
+        public Task<TReturn> CallAsync<T1,T2,T3,T4,T5,T6,T7,T8,TReturn>(Func<T1,T2,T3,T4,T5,T6,T7,T8, NetConnection, Task<TReturn>> method,T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5,T6 arg6,T7 arg7,T8 arg8, NetConnection connection = null) => CreateAndCallAsync<TReturn>(method.Method,new object[]{arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8},connection);
+        public Task<TReturn> CallAsync<T1,T2,T3,T4,T5,T6,T7,T8,T9,TReturn>(Func<T1,T2,T3,T4,T5,T6,T7,T8,T9, NetConnection, Task<TReturn>> method,T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5,T6 arg6,T7 arg7,T8 arg8, T9 arg9, NetConnection connection = null) => CreateAndCallAsync<TReturn>(method.Method,new object[]{arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9},connection);
+        public Task<TReturn> CallAsync<T1,T2,T3,T4,T5,T6,T7,T8,T9,T10,TReturn>(Func<T1,T2,T3,T4,T5,T6,T7,T8,T9,T10, NetConnection, Task<TReturn>> method,T1 arg1,T2 arg2,T3 arg3,T4 arg4,T5 arg5,T6 arg6,T7 arg7,T8 arg8, T9 arg9, T10 arg10, NetConnection connection = null) => CreateAndCallAsync<TReturn>(method.Method,new object[]{arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9,arg10},connection);
 
-        private void CreateAndSendCall(MethodInfo info, object[] args = null, NetConnection recipient = null)
+        private void CreateAndCall(MethodInfo info, object[] args = null, NetConnection recipient = null)
         {
-            var netMessage = CreateMessage(info, CommunicationType.FireAndForget, args);
+            var netMessage = CreateMessage(info, CommunicationType.Call, args);
             if (recipient == null)
             {
                 (NetConnector as NetClient)?.SendMessage(netMessage, NetDeliveryMethod.ReliableOrdered);
@@ -139,7 +149,6 @@ namespace Lidgren.Network.ContractCommunication
 
         private NetOutgoingMessage CreateMessage(MethodInfo info, CommunicationType type,object[] args = null)
         {
-            Console.WriteLine("create message...");
             var callMessage =
                 Converter.CreateSendCallMessage(_sendAddressDictionary[info.Name], info.GetParameters(), args);
             var netMessage = NetConnector.CreateMessage();
@@ -148,17 +157,11 @@ namespace Lidgren.Network.ContractCommunication
             netMessage.Write(Converter.SerializeCallMessage(callMessage));
             return netMessage;
         }
-
-        private class AwaitingCallJob
-        {
-            public Type ReturnType { get; set; }
-            public object Data { get; set; }
-        }
-        private Dictionary<string,AwaitingCallJob> AwaitingCalls = new Dictionary<string, AwaitingCallJob>();
-        private Task<TReturn> CreateAndSendAwaitableCall<TReturn>(MethodInfo info, object[] args = null,
+        
+        private Task<TReturn> CreateAndCallAsync<TReturn>(MethodInfo info, object[] args = null,
             NetConnection recipient = null)
         {
-            var netMessage = CreateMessage(info, CommunicationType.Awaitable, args);
+            var netMessage = CreateMessage(info, CommunicationType.CallAsync, args);
             var taskKey = Guid.NewGuid().ToString();
             netMessage.Write(taskKey);
 
@@ -173,15 +176,21 @@ namespace Lidgren.Network.ContractCommunication
 
             return Task.Run((() =>
             {
-                
-                AwaitingCalls.Add(taskKey, new AwaitingCallJob(){ReturnType = typeof(TReturn),Data = null});
+                var time = DateTime.Now;
+                _awaitingCalls.Add(taskKey, new AwaitingCallJob(){ReturnType = typeof(TReturn),Data = null});
                 while (true)
                 {
-                    if (AwaitingCalls[taskKey].Data != null)
+                    var elapsedTime = (DateTime.Now-time).TotalSeconds;
+                    if (elapsedTime >= CommunicationSettings.AwaitCallTimeOut)
+                    {
+                        _awaitingCalls.Remove(taskKey);
+                        throw new CommunicationTimeOutException($"Calling {info.Name} took longer than configured time in CommunicationSettings, elapsed time: {elapsedTime:F1}");
+                    }
+                    if (_awaitingCalls[taskKey].Data != null)
                         break;
                 }
-                var data = (TReturn) AwaitingCalls[taskKey].Data;
-                AwaitingCalls.Remove(taskKey);
+                var data = (TReturn) _awaitingCalls[taskKey].Data;
+                _awaitingCalls.Remove(taskKey);
                 return data;
             }));
         }
@@ -189,7 +198,7 @@ namespace Lidgren.Network.ContractCommunication
         private void SendAwaitedReturnMessage(string identifier, object result, NetConnection connection)
         {
             var netMessage = NetConnector.CreateMessage();
-            netMessage.Write((byte)CommunicationType.AwaitableReturn);
+            netMessage.Write((byte)CommunicationType.CallAsyncReturn);
             netMessage.Write(identifier);
             netMessage.Write(Converter.SerializeArgument(result,result.GetType()));
             if (NetConnector is NetServer server)
@@ -204,10 +213,10 @@ namespace Lidgren.Network.ContractCommunication
         protected void FilterMessage(NetIncomingMessage message)
         {
             var messageType = (CommunicationType)message.ReadByte();
-            if (messageType == CommunicationType.AwaitableReturn)
+            if (messageType == CommunicationType.CallAsyncReturn)
             {
                 var identifier = message.ReadString();
-                var awaitingCall = AwaitingCalls[identifier];
+                var awaitingCall = _awaitingCalls[identifier];
                 awaitingCall.Data = Converter.DeserializeArgument(message.ReadString(), awaitingCall.ReturnType);
                 return;
             }
@@ -216,7 +225,7 @@ namespace Lidgren.Network.ContractCommunication
             var args = Converter.HandleRecieveMessage(message.ReadString(), pointer,message.SenderConnection);
             switch (messageType)
             {
-                case CommunicationType.FireAndForget:
+                case CommunicationType.Call:
                     try
                     {
                         if (pointer.Method.ReturnType == typeof(Task))
@@ -233,7 +242,7 @@ namespace Lidgren.Network.ContractCommunication
                         Log(ex.InnerException ?? ex);
                     }
                     break;
-                case CommunicationType.Awaitable:
+                case CommunicationType.CallAsync:
                     try
                     {
                         var taskKey = message.ReadString();
@@ -244,7 +253,7 @@ namespace Lidgren.Network.ContractCommunication
                         Log(ex.InnerException ?? ex);
                     }
                     break;
-                case CommunicationType.AwaitableReturn:
+                case CommunicationType.CallAsyncReturn:
 
                     break;
                 default:
@@ -255,9 +264,9 @@ namespace Lidgren.Network.ContractCommunication
 
         protected void RunTasks()
         {
-            for (var i = RunningTasks.Count; i-- > 0;)
+            for (var i = _runningTasks.Count; i-- > 0;)
             {
-                var job = RunningTasks[i];
+                var job = _runningTasks[i];
                 var task = (Task) job.Task;
                 switch (task.Status)
                 {
@@ -272,7 +281,7 @@ namespace Lidgren.Network.ContractCommunication
                     case TaskStatus.WaitingForChildrenToComplete:
                         break;
                     case TaskStatus.RanToCompletion:
-                        RunningTasks.Remove(job);
+                        _runningTasks.Remove(job);
                         var type = job.TaskType;
                         if (type == null)
                         {
@@ -289,12 +298,12 @@ namespace Lidgren.Network.ContractCommunication
                         }
                         break;
                     case TaskStatus.Canceled:
-                        RunningTasks.Remove(job);
+                        _runningTasks.Remove(job);
                         if(task.Exception != null)
                             ExceptionsCaught.Add(task.Exception);
                         break;
                     case TaskStatus.Faulted:
-                        RunningTasks.Remove(job);
+                        _runningTasks.Remove(job);
                         if (task.Exception != null)
                             ExceptionsCaught.Add(task.Exception);
                         break;
@@ -308,7 +317,7 @@ namespace Lidgren.Network.ContractCommunication
         }
         protected void AddRunningTask(Task task,Type taskType = null,string identifier = null,NetConnection reciever = null)
         {
-            RunningTasks.Add(new TaskJob(){Task = task,TaskType = taskType,Identifier = identifier,Reciever = reciever});
+            _runningTasks.Add(new TaskJob(){Task = task,TaskType = taskType,Identifier = identifier,Reciever = reciever});
         }
         public virtual void Tick(int interval)
         {
@@ -358,6 +367,20 @@ namespace Lidgren.Network.ContractCommunication
         }
         protected abstract void OnDisconnected(NetConnection connection);
         protected abstract void OnConnected(NetConnection connection);
+
+        private class AwaitingCallJob
+        {
+            public Type ReturnType { get; set; }
+            public object Data { get; set; }
+        }
+        private class TaskJob
+        {
+            public object Task { get; set; }
+            public Type TaskType { get; set; }
+            public string Identifier { get; set; }
+            public NetConnection Reciever { get; set; }
+        }
+          
     }
     public class MessageFilter
     {
@@ -368,19 +391,5 @@ namespace Lidgren.Network.ContractCommunication
     {
         public ushort Key;
         public string[] Args;
-    }
-
-    public class ContractHolder<T> where T : IContract
-    {
-        public T Contract;
-        
-    }
-
-    public class TaskJob
-    {
-        public object Task { get; set; }
-        public Type TaskType { get; set; }
-        public string Identifier { get; set; }
-        public NetConnection Reciever { get; set; }
     }
 }
