@@ -14,9 +14,19 @@ namespace Lidgren.Network.ContractCommunication
     {
         protected IAuthenticator Authenticator;
         protected string[] RequiredAuthenticationRoles;
-
         private List<Tuple<AuthenticationResult, string>> AuthenticationResults { get; } = new List<Tuple<AuthenticationResult, string>>();
-        protected Dictionary<NetConnection, CommunicationUser<TAuthenticationUser>> PendingAndLoggedInUsers { get; } = new Dictionary<NetConnection, CommunicationUser<TAuthenticationUser>>();
+        private readonly object _usersLock = new object();
+        private Dictionary<NetConnection, CommunicationUser<TAuthenticationUser>> _users =new Dictionary<NetConnection, CommunicationUser<TAuthenticationUser>>();
+        protected Dictionary<NetConnection, CommunicationUser<TAuthenticationUser>> PendingAndLoggedInUsers
+        {
+            get
+            {
+                lock (_usersLock)
+                {
+                    return _users;
+                }
+            }
+        }
 
         private Stopwatch TickWatch { get; } = new Stopwatch();
 
@@ -202,7 +212,8 @@ namespace Lidgren.Network.ContractCommunication
         }
         protected void DoForUsers(Func<TAuthenticationUser, bool> predicate, Action<NetConnection, TAuthenticationUser> onConnectionAction)
         {
-            foreach (var kv in PendingAndLoggedInUsers)
+            var users = PendingAndLoggedInUsers.ToList();
+            foreach (var kv in users)
             {
                 if (kv.Value.UserData == null) // user pending a log in - ignored...
                     continue;
