@@ -17,6 +17,8 @@ namespace Lidgren.Network.ContractCommunication
         private List<Tuple<AuthenticationResult, string>> AuthenticationResults { get; } = new List<Tuple<AuthenticationResult, string>>();
         private readonly object _usersLock = new object();
         private Dictionary<NetConnection, CommunicationUser<TAuthenticationUser>> _users =new Dictionary<NetConnection, CommunicationUser<TAuthenticationUser>>();
+        private bool _isRunning;
+        public bool IsRunning => _isRunning;
         protected Dictionary<NetConnection, CommunicationUser<TAuthenticationUser>> PendingAndLoggedInUsers
         {
             get
@@ -47,8 +49,14 @@ namespace Lidgren.Network.ContractCommunication
 
         public virtual void StartService()
         {
+            _isRunning = true;
             NetConnector.Start();
             Log($"Service started on port: {Configuration.Port}");
+        }
+        public virtual void StopService(string message)
+        {
+            NetConnector.Shutdown(message);
+            _isRunning = false;
         }
 
         public override void Tick(int repeatRate)
@@ -155,10 +163,10 @@ namespace Lidgren.Network.ContractCommunication
 
         }
 
-        protected override void Log(object message, [CallerMemberName]string caller = null)
-        {
-            Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}]\t[{caller}]\t{message.ToString()}");
-        }
+        //protected override void Log(object message, [CallerMemberName]string caller = null)
+        //{
+        //    Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}]\t[{caller}]\t{message.ToString()}");
+        //}
         protected virtual bool AuthorizedForMessage(NetConnection connection)
         {
             return PendingAndLoggedInUsers.ContainsKey(connection);
