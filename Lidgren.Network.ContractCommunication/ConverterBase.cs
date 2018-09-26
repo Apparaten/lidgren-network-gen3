@@ -19,7 +19,7 @@ namespace Lidgren.Network.ContractCommunication
             {
                 if (parameters[i].ParameterType == typeof(NetConnection))
                     continue;
-                serializedArgs.Add(SerializeArgument(args[i], args[i].GetType()));
+                serializedArgs.Add(SerializeArgument(args[i], parameters[i].ParameterType));
             }
             return new CallMessage() { Args = serializedArgs.ToArray(), Key = key };
         }

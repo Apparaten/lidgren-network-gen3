@@ -10,5 +10,6 @@ namespace Lidgren.Network.ContractCommunication
     {
         public string UserName { get; set; }
         public T UserData { get; set; }
+        public DateTime LoggedInTime { get; set; }
     }
 }

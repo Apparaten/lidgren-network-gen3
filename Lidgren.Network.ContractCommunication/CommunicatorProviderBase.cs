@@ -147,8 +147,13 @@ namespace Lidgren.Network.ContractCommunication
 
         protected override void OnDisconnected_Internal(NetConnection connection)
         {
-            Log($"removing user: {PendingAndLoggedInUsers[connection].UserName}");
+            OnUserDisconnected(PendingAndLoggedInUsers[connection]);
             PendingAndLoggedInUsers.Remove(connection);
+        }
+
+        protected virtual void OnUserDisconnected(CommunicationUser<TAuthenticationUser> user)
+        {
+            
         }
         protected override void OnDisconnected(NetConnection connection)
         {
@@ -191,6 +196,7 @@ namespace Lidgren.Network.ContractCommunication
                    {
                         var userData = await GetUser(authentication.UserId);
                         PendingAndLoggedInUsers[connection].UserData = userData;
+                        PendingAndLoggedInUsers[connection].LoggedInTime = DateTime.UtcNow;
                    }
                    AuthenticationResults.Add(new Tuple<AuthenticationResult, string>(authentication, user));
                });
