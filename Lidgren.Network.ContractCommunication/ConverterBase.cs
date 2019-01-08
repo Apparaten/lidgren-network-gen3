@@ -12,7 +12,7 @@ namespace Lidgren.Network.ContractCommunication
         protected abstract CallMessage DeserializeCallMessage(string message);
         public abstract string SerializeArgument(object obj, Type type);
         //public abstract object DeserializeArgument(TBaseData baseTypeData, Type type);
-        public CallMessage CreateSendCallMessage(ushort key, ParameterInfo[] parameters, object[] args)
+        public CallMessage CreateSendCallMessage(ParameterInfo[] parameters, object[] args)
         {
             var serializedArgs = new List<string>();
             for (var i = 0; i < parameters.Length; i++)
@@ -21,7 +21,7 @@ namespace Lidgren.Network.ContractCommunication
                     continue;
                 serializedArgs.Add(SerializeArgument(args[i], args[i].GetType()));
             }
-            return new CallMessage() { Args = serializedArgs.ToArray(), Key = key };
+            return new CallMessage() { Args = serializedArgs.ToArray()};
         }
 
         public CallMessage CreateSendCallMessage(object obj,Type type)
@@ -29,13 +29,13 @@ namespace Lidgren.Network.ContractCommunication
             return new CallMessage(){Args = new []{SerializeArgument(obj,type)}};
         }
 
-        public object[] HandleRecieveMessage(string message, MessageFilter pointer, NetConnection senderConnection)
+        public object[] HandleRecieveMessage(string message, MessagePointer pointer, NetConnection senderConnection)
         {
             var callMessage = DeserializeCallMessage(message);
-            var args = new object[pointer.Types.Length];
-            for (var i = 0; i < pointer.Types.Length; i++)
+            var args = new object[pointer.ParameterInfos.Length];
+            for (var i = 0; i < pointer.ParameterInfos.Length; i++)
             {
-                var pointerArgType = pointer.Types[i];
+                var pointerArgType = pointer.ParameterInfos[i].ParameterType;
                 if (pointerArgType == typeof(NetConnection))
                 {
                     args[i] = senderConnection;

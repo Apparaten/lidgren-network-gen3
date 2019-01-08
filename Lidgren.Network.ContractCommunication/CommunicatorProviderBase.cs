@@ -3,6 +3,7 @@ using System.CodeDom;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
@@ -10,7 +11,7 @@ using Lidgren.Network;
 
 namespace Lidgren.Network.ContractCommunication
 {
-    public abstract class CommunicatorProviderBase<TServiceContract, TAuthenticationUser, TSerializedSendType> : CommunicatorBase<TServiceContract> where TServiceContract : ICallbackContract,new() where TAuthenticationUser : new()
+    public abstract class CommunicatorProviderBase<TAuthenticationUser> : CommunicatorBase where TAuthenticationUser : new()
     {
         protected IAuthenticator Authenticator;
         protected string[] RequiredAuthenticationRoles;
@@ -32,7 +33,6 @@ namespace Lidgren.Network.ContractCommunication
             NetConnector = new NetServer(configuration);
 
             Authenticator = authenticator;
-            Initialize(typeof(ICallbackContract), typeof(IProviderContract));
         }
 
         public virtual void StartService()
@@ -66,7 +66,7 @@ namespace Lidgren.Network.ContractCommunication
                         ConnectionApproval(msg);
                         break;
                     case NetIncomingMessageType.Data:
-                        if (AuthorizedForMessage(msg.SenderConnection))
+                        if (PendingAndLoggedInUsers.ContainsKey(msg.SenderConnection))
                         {
                             FilterMessage(msg);
                         }
@@ -149,9 +149,20 @@ namespace Lidgren.Network.ContractCommunication
         {
             Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}]\t[{caller}]\t{message.ToString()}");
         }
-        protected virtual bool AuthorizedForMessage(NetConnection connection)
+
+        protected override bool AuthorizedForMessage(MessagePointer pointer, NetConnection connection)
         {
-            return PendingAndLoggedInUsers.ContainsKey(connection);
+            if (pointer.AuthenticationAttributes == null) return true;
+            var user = PendingAndLoggedInUsers[connection];
+            var isAuthorized = pointer.AuthenticationAttributes.All(attr => attr.IsAuthorized(connection, user));
+            if (isAuthorized) return true;
+            OnUnauthorizedForMessage(pointer, connection);
+            return false;
+        }
+
+        protected virtual void OnUnauthorizedForMessage(MessagePointer pointer, NetConnection connection)
+        {
+            
         }
         protected virtual void ConnectionApproval(NetIncomingMessage msg)
         {
@@ -200,7 +211,7 @@ namespace Lidgren.Network.ContractCommunication
         {
             PendingAndLoggedInUsers.Remove(authenticationResult.Connection);
         }
-        protected void DoForUsers(Func<TAuthenticationUser, bool> predicate, Action<NetConnection, TAuthenticationUser> onConnectionAction)
+        public void DoForUsers(Func<TAuthenticationUser, bool> predicate, Action<NetConnection, TAuthenticationUser> onConnectionAction)
         {
             foreach (var kv in PendingAndLoggedInUsers)
             {
@@ -212,5 +223,19 @@ namespace Lidgren.Network.ContractCommunication
                 }
             }
         }
+
+        public List<NetConnection> GetConnections(Func<TAuthenticationUser, NetConnection, bool> predicate)
+        {
+            return (from kv in PendingAndLoggedInUsers where kv.Value.UserData != null where predicate(kv.Value.UserData, kv.Key) select kv.Key).ToList();
+        }
+        public void Call<TContract, TMethod>(Expression<Func<TContract, TMethod>> selector, List<NetConnection> connections,
+            params object[] args) =>
+            CreateAndCall(typeof(TContract), (UnaryExpression)selector.Body, args, connections);
+        public void Call<TContract, TMethod>(Expression<Func<TContract, TMethod>> selector, NetConnection connection,
+            params object[] args) =>
+            CreateAndCall(typeof(TContract), (UnaryExpression)selector.Body, args, new List<NetConnection>(){connection});
+        public Task<TReturn> CallAsync<TContract, TMethod, TReturn>(
+            Expression<Func<TContract, TMethod>> selector, NetConnection connection, params object[] args) =>
+            CreateAndCallAsync<TReturn>(typeof(TContract), (UnaryExpression) selector.Body, args, connection);
     }
 }

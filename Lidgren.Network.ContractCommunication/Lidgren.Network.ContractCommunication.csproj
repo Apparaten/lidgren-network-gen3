@@ -43,7 +43,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ClassBuilder.cs" />
+    <Compile Include="AuthenticationAttribute.cs" />
     <Compile Include="CommunicationExceptions.cs" />
     <Compile Include="CommunicationSettings.cs" />
     <Compile Include="CommunicationType.cs" />
@@ -53,9 +53,7 @@
     <Compile Include="CommunicatorProviderBase.cs" />
     <Compile Include="ConverterBase.cs" />
     <Compile Include="IAuthenticator.cs" />
-    <Compile Include="ICallbackContract.cs" />
     <Compile Include="IContract.cs" />
-    <Compile Include="IProviderContract.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

@@ -1,13 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace Lidgren.Network.ContractCommunication
 {
-    public abstract class CommunicatorClientBase<TServiceContract> : CommunicatorBase<TServiceContract> where TServiceContract : IProviderContract,new ()
+    public abstract class CommunicatorClientBase : CommunicatorBase
     {
         private string _host;
         private int _port;
@@ -17,7 +18,6 @@ namespace Lidgren.Network.ContractCommunication
             _host = host;
             _port = port;
             NetConnector = new NetClient(configuration);
-            Initialize(typeof(IProviderContract), typeof(ICallbackContract));
         }
         public virtual void Connect(string user, string password,[CallerMemberName]string caller = "")
         {
@@ -94,5 +94,12 @@ namespace Lidgren.Network.ContractCommunication
             NetConnector.Connections.FirstOrDefault()?.Disconnect();
             NetConnector.Shutdown("shutdown");
         }
+        public void Call<TContract, TMethod>(Expression<Func<TContract, TMethod>> selector,
+            params object[] args) =>
+            CreateAndCall(typeof(TContract), (UnaryExpression)selector.Body, args, null);
+
+        public Task<TReturn> CallAsync<TContract, TMethod, TReturn>(
+            Expression<Func<TContract, TMethod>> selector, params object[] args) =>
+            CreateAndCallAsync<TReturn>(typeof(TContract), (UnaryExpression) selector.Body, args, null);
     }
 }
