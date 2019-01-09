@@ -14,20 +14,18 @@ namespace Lidgren.Network.ContractCommunication
     public abstract class CommunicatorProviderBase<TAuthenticationUser> : CommunicatorBase where TAuthenticationUser : new()
     {
         protected IAuthenticator Authenticator;
-        protected string[] RequiredAuthenticationRoles;
 
         private List<Tuple<AuthenticationResult, string>> AuthenticationResults { get; } = new List<Tuple<AuthenticationResult, string>>();
         protected Dictionary<NetConnection, CommunicationUser<TAuthenticationUser>> PendingAndLoggedInUsers { get; } = new Dictionary<NetConnection, CommunicationUser<TAuthenticationUser>>();
 
         private Stopwatch TickWatch { get; } = new Stopwatch();
 
-        protected CommunicatorProviderBase(NetPeerConfiguration configuration,ConverterBase converter, IAuthenticator authenticator = null, string[] requiredAuthenticationRoles = null)
+        protected CommunicatorProviderBase(NetPeerConfiguration configuration,ConverterBase converter, IAuthenticator authenticator = null)
         {
             Configuration = configuration;
             Converter = converter;
             if (authenticator != null)
             {
-                RequiredAuthenticationRoles = requiredAuthenticationRoles;
                 configuration.EnableMessageType(NetIncomingMessageType.ConnectionApproval);
             }
             NetConnector = new NetServer(configuration);
