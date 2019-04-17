@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
+using Lidgren.Network.Encryption;
 
 namespace Lidgren.Network.ContractCommunication
 {
@@ -24,7 +25,7 @@ namespace Lidgren.Network.ContractCommunication
         public NetConnectionStatus ConnectionStatus { get; protected set; }
         
         protected ConverterBase Converter;
-
+        public INetEncryptor NetEncryptor { get; protected set; }
         public event Action<NetConnectionStatus,NetConnectionResult> OnConnectionStatusChangedEvent;
         private List<Tuple<Object, string>> _logList = new List<Tuple<object, string>>();
         private event Action<object, string> _onLoggedEvent;
@@ -139,10 +140,12 @@ namespace Lidgren.Network.ContractCommunication
             var netMessage = CreateMessage(info, CommunicationType.Call, args);
             if (recipient == null)
             {
+                NetEncryptor.Encrypt(netMessage);
                 (NetConnector as NetClient)?.SendMessage(netMessage, NetDeliveryMethod.ReliableOrdered);
             }
             else
             {
+                NetEncryptor.Encrypt(netMessage,recipient);
                 (NetConnector as NetServer)?.SendMessage(netMessage, recipient, NetDeliveryMethod.ReliableOrdered, 0);
             }
         }
@@ -167,10 +170,12 @@ namespace Lidgren.Network.ContractCommunication
 
             if (recipient == null)
             {
+                NetEncryptor.Encrypt(netMessage);
                 (NetConnector as NetClient)?.SendMessage(netMessage, NetDeliveryMethod.ReliableOrdered);
             }
             else
             {
+                NetEncryptor.Encrypt(netMessage,recipient);
                 (NetConnector as NetServer)?.SendMessage(netMessage, recipient, NetDeliveryMethod.ReliableOrdered, 0);
             }
 

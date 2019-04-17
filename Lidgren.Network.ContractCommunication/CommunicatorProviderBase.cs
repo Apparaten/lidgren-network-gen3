@@ -4,9 +4,11 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using Lidgren.Network;
+using Lidgren.Network.Encryption;
 
 namespace Lidgren.Network.ContractCommunication
 {
@@ -42,7 +44,7 @@ namespace Lidgren.Network.ContractCommunication
                 configuration.EnableMessageType(NetIncomingMessageType.ConnectionApproval);
             }
             NetConnector = new NetServer(configuration);
-
+            NetEncryptor = new ServerRsaTripleDesNetEncryptor(NetConnector,4096);
             Authenticator = authenticator;
             Initialize(typeof(ICallbackContract), typeof(IProviderContract));
         }
@@ -86,6 +88,7 @@ namespace Lidgren.Network.ContractCommunication
                     case NetIncomingMessageType.Data:
                         if (AuthorizedForMessage(msg.SenderConnection))
                         {
+                            NetEncryptor.Decrypt(msg);
                             FilterMessage(msg);
                         }
                         break;
@@ -109,33 +112,59 @@ namespace Lidgren.Network.ContractCommunication
             {
                 var result = AuthenticationResults[0].Item1;
                 var user = AuthenticationResults[0].Item2;
-                if (result.Success)
+                try
                 {
-                    result.Connection.Approve();
-                    OnAuthenticationApproved(result, user);
-                }
-                else
-                {
-                    switch (result.RequestState)
+                    if (result.Success)
                     {
-                        case RequestState.EndpointFailure:
-                            result.Connection.Deny(NetConnectionResult.NoResponseFromRemoteHost);
-                            break;
-                        case RequestState.Success:
-                            result.Connection.Deny(NetConnectionResult.Unknown);
-                            break;
-                        case RequestState.UserAlreadyLoggedIn:
-                            result.Connection.Deny(NetConnectionResult.UserAlreadyLoggedIn);
-                            break;
-                        case RequestState.WrongCredentials:
-                            result.Connection.Deny(NetConnectionResult.WrongCredentials);
-                            break;
-                        default:
-                            throw new ArgumentOutOfRangeException();
+                        byte[] key;
+                        byte[] iv;
+                        ((ServerRsaTripleDesNetEncryptor)NetEncryptor).GenerateKeyForConnection(result.Connection, out key, out iv);
+                        var hailMessage = NetConnector.CreateMessage();
+                        Log($"HAIL => keyLength: {key.Length} ivLength:{iv.Length}");
+                        Log($"HAIL => no data HailmessageLength: {hailMessage.LengthBytes}");
+                        Log($"HAIL => keyLength: {key.Length} ivLength:{iv.Length} Total:{key.Length + iv.Length}");
+                        hailMessage.Write(key.Length);
+                        hailMessage.Write(key);
+                        hailMessage.Write(iv.Length);
+                        hailMessage.Write(iv);
+                        Log($"HAIL => Full data HailmessageLength: {hailMessage.LengthBytes}");
+                        ((ServerRsaTripleDesNetEncryptor)NetEncryptor).EncryptHail(hailMessage, result.Connection);
+                        result.Connection.Approve(hailMessage);
+                        OnAuthenticationApproved(result, user);
                     }
+                    else
+                    {
+                        switch (result.RequestState)
+                        {
+                            case RequestState.EndpointFailure:
+                                result.Connection.Deny(NetConnectionResult.NoResponseFromRemoteHost);
+                                break;
+                            case RequestState.Success:
+                                result.Connection.Deny(NetConnectionResult.Unknown);
+                                break;
+                            case RequestState.UserAlreadyLoggedIn:
+                                result.Connection.Deny(NetConnectionResult.UserAlreadyLoggedIn);
+                                break;
+                            case RequestState.WrongCredentials:
+                                result.Connection.Deny(NetConnectionResult.WrongCredentials);
+                                break;
+                            default:
+                                throw new ArgumentOutOfRangeException();
+                        }
+                        OnAuthenticationDenied(result, user);
+                    }
+                }
+                catch (Exception e)
+                {
+                    Log(e);
+                    result.Connection.Deny(NetConnectionResult.Unknown);
                     OnAuthenticationDenied(result, user);
                 }
-                AuthenticationResults.Remove(AuthenticationResults[0]);
+                finally
+                {
+                    AuthenticationResults.Remove(AuthenticationResults[0]);
+                }
+                
             }
             RunTasks();
             TickWatch.Stop();
@@ -157,6 +186,7 @@ namespace Lidgren.Network.ContractCommunication
         {
             OnUserDisconnected(PendingAndLoggedInUsers[connection]);
             PendingAndLoggedInUsers.Remove(connection);
+            ((ServerRsaTripleDesNetEncryptor)NetEncryptor).ConnectionCryptoProviders.Remove(connection);
         }
 
         protected virtual void OnUserDisconnected(CommunicationUser<TAuthenticationUser> user)
@@ -165,7 +195,7 @@ namespace Lidgren.Network.ContractCommunication
         }
         protected override void OnDisconnected(NetConnection connection)
         {
-
+            
         }
 
         //protected override void Log(object message, [CallerMemberName]string caller = null)
@@ -178,9 +208,13 @@ namespace Lidgren.Network.ContractCommunication
         }
         protected virtual void ConnectionApproval(NetIncomingMessage msg)
         {
+            ((ServerRsaTripleDesNetEncryptor)NetEncryptor).DecryptHail(msg);
             var connection = msg.SenderConnection;
             var user = msg.ReadString().ToLower();
             var password = msg.ReadString();
+            var cspBlob = msg.ReadBytes(msg.ReadInt32());
+
+            ((ServerRsaTripleDesNetEncryptor)NetEncryptor).ImportClientHandShakeKey(cspBlob,msg.SenderConnection);
             if (PendingAndLoggedInUsers.Values.Any(c => c.UserName == user))
             {
                 AuthenticationResults.Add(new Tuple<AuthenticationResult, string>(
