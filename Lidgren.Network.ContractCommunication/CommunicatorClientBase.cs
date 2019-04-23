@@ -19,10 +19,15 @@ namespace Lidgren.Network.ContractCommunication
             _host = host;
             _port = port;
             NetConnector = new NetClient(configuration);
-            NetEncryptor = new ClientRsaTripleDesNetEncryptor(NetConnector,1024);
+            NetEncryptor = new ClientTripleDesNetEncryptor(NetConnector,1024);
             Initialize(typeof(IProviderContract), typeof(ICallbackContract));
         }
-        public virtual void Connect(string user, string password,[CallerMemberName]string caller = "")
+
+        public void ImportTripleDesKey(byte[] key, byte[] iv)
+        {
+            ((ClientTripleDesNetEncryptor)NetEncryptor).ImportRemoteTripleDes(key,iv);
+        }
+        public virtual void Connect(string user, string password,string token,[CallerMemberName]string caller = "")
         {
             Log("TRYING TO CONNECT - "+caller);
             var status = NetConnector.Status;
@@ -44,11 +49,7 @@ namespace Lidgren.Network.ContractCommunication
             var msg = NetConnector.CreateMessage();
             msg.Write(user);
             msg.Write(password);
-            var cspBlob = ((ClientRsaTripleDesNetEncryptor) NetEncryptor).ExportHandShakeKey();
-            msg.Write(cspBlob.Length);
-            msg.Write(cspBlob);
-            Log(msg.LengthBytes);
-            ((ClientRsaTripleDesNetEncryptor)NetEncryptor).EncryptHail(msg);
+            ((ClientTripleDesNetEncryptor)NetEncryptor).EncryptHail(msg,token);
             NetConnector.Connect(_host, _port, msg);
         }
         public override void Tick(int interval)
@@ -68,16 +69,6 @@ namespace Lidgren.Network.ContractCommunication
                     case NetIncomingMessageType.StatusChanged:
                         var change = (NetConnectionStatus)msg.ReadByte();
                         var connectionResult = (NetConnectionResult) msg.ReadByte();
-                        if (change == NetConnectionStatus.Connected)
-                        {
-                            var hailMessage = msg.SenderConnection.RemoteHailMessage;
-                            ((ClientRsaTripleDesNetEncryptor)NetEncryptor).DecryptHail(hailMessage);
-                            var keyLength = hailMessage.ReadInt32();
-                            var key = hailMessage.ReadBytes(keyLength);
-                            var ivLength = hailMessage.ReadInt32();
-                            var iv = hailMessage.ReadBytes(ivLength);
-                            ((ClientRsaTripleDesNetEncryptor)NetEncryptor).ImportRemoteTripleDes(key,iv);
-                        }
                         OnConnectionStatusChanged(change,connectionResult,msg.SenderConnection);
                         break;
                     case NetIncomingMessageType.UnconnectedData:

@@ -9,6 +9,13 @@ namespace Lidgren.Network.ContractCommunication
     public interface IAuthenticator
     {
         Task<AuthenticationResult> Authenticate(string user, string password);
+        Task<TripleDesInformation> GetKeyFromToken(string token);
+    }
+
+    public class TripleDesInformation
+    {
+        public byte[] Key { get; set; }
+        public byte[] Iv { get; set; }
     }
 
     public class AuthenticationResult

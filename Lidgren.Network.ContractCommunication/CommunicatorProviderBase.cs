@@ -1,11 +1,7 @@
 ﻿using System;
-using System.CodeDom;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Security.Cryptography;
-using System.Text;
 using System.Threading.Tasks;
 using Lidgren.Network;
 using Lidgren.Network.Encryption;
@@ -44,7 +40,7 @@ namespace Lidgren.Network.ContractCommunication
                 configuration.EnableMessageType(NetIncomingMessageType.ConnectionApproval);
             }
             NetConnector = new NetServer(configuration);
-            NetEncryptor = new ServerRsaTripleDesNetEncryptor(NetConnector,4096);
+            NetEncryptor = new ServerTripleDesNetEncryptor(NetConnector,4096);
             Authenticator = authenticator;
             Initialize(typeof(ICallbackContract), typeof(IProviderContract));
         }
@@ -66,6 +62,7 @@ namespace Lidgren.Network.ContractCommunication
             NetIncomingMessage msg;
             while ((msg = NetConnector.ReadMessage()) != null)
             {
+                var recycleNow = true;
                 switch (msg.MessageType)
                 {
                     case NetIncomingMessageType.VerboseDebugMessage:
@@ -83,6 +80,7 @@ namespace Lidgren.Network.ContractCommunication
                     case NetIncomingMessageType.UnconnectedData:
                         break;
                     case NetIncomingMessageType.ConnectionApproval:
+                        recycleNow = false;
                         ConnectionApproval(msg);
                         break;
                     case NetIncomingMessageType.Data:
@@ -106,7 +104,10 @@ namespace Lidgren.Network.ContractCommunication
                         Log("Unhandled type: " + msg.MessageType);
                         break;
                 }
-                NetConnector.Recycle(msg);
+                if (recycleNow)
+                {
+                    NetConnector.Recycle(msg);
+                }
             }
             while (AuthenticationResults.Count > 0)
             {
@@ -116,20 +117,7 @@ namespace Lidgren.Network.ContractCommunication
                 {
                     if (result.Success)
                     {
-                        byte[] key;
-                        byte[] iv;
-                        ((ServerRsaTripleDesNetEncryptor)NetEncryptor).GenerateKeyForConnection(result.Connection, out key, out iv);
-                        var hailMessage = NetConnector.CreateMessage();
-                        Log($"HAIL => keyLength: {key.Length} ivLength:{iv.Length}");
-                        Log($"HAIL => no data HailmessageLength: {hailMessage.LengthBytes}");
-                        Log($"HAIL => keyLength: {key.Length} ivLength:{iv.Length} Total:{key.Length + iv.Length}");
-                        hailMessage.Write(key.Length);
-                        hailMessage.Write(key);
-                        hailMessage.Write(iv.Length);
-                        hailMessage.Write(iv);
-                        Log($"HAIL => Full data HailmessageLength: {hailMessage.LengthBytes}");
-                        ((ServerRsaTripleDesNetEncryptor)NetEncryptor).EncryptHail(hailMessage, result.Connection);
-                        result.Connection.Approve(hailMessage);
+                        result.Connection.Approve();
                         OnAuthenticationApproved(result, user);
                     }
                     else
@@ -186,7 +174,7 @@ namespace Lidgren.Network.ContractCommunication
         {
             OnUserDisconnected(PendingAndLoggedInUsers[connection]);
             PendingAndLoggedInUsers.Remove(connection);
-            ((ServerRsaTripleDesNetEncryptor)NetEncryptor).ConnectionCryptoProviders.Remove(connection);
+            ((ServerTripleDesNetEncryptor)NetEncryptor).ConnectionCryptoProviders.Remove(connection);
         }
 
         protected virtual void OnUserDisconnected(CommunicationUser<TAuthenticationUser> user)
@@ -197,24 +185,19 @@ namespace Lidgren.Network.ContractCommunication
         {
             
         }
-
-        //protected override void Log(object message, [CallerMemberName]string caller = null)
-        //{
-        //    Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}]\t[{caller}]\t{message.ToString()}");
-        //}
         protected virtual bool AuthorizedForMessage(NetConnection connection)
         {
             return PendingAndLoggedInUsers.ContainsKey(connection);
         }
-        protected virtual void ConnectionApproval(NetIncomingMessage msg)
+        protected virtual async void ConnectionApproval(NetIncomingMessage msg)
         {
-            ((ServerRsaTripleDesNetEncryptor)NetEncryptor).DecryptHail(msg);
+            var token = msg.ReadString();
+            var tripleDesInformation = await Authenticator.GetKeyFromToken(token);
+            ((ServerTripleDesNetEncryptor)NetEncryptor).ImportKeyForConnection(msg.SenderConnection,tripleDesInformation.Key,tripleDesInformation.Iv);
+            ((ServerTripleDesNetEncryptor)NetEncryptor).Decrypt(msg);
             var connection = msg.SenderConnection;
             var user = msg.ReadString().ToLower();
             var password = msg.ReadString();
-            var cspBlob = msg.ReadBytes(msg.ReadInt32());
-
-            ((ServerRsaTripleDesNetEncryptor)NetEncryptor).ImportClientHandShakeKey(cspBlob,msg.SenderConnection);
             if (PendingAndLoggedInUsers.Values.Any(c => c.UserName == user))
             {
                 AuthenticationResults.Add(new Tuple<AuthenticationResult, string>(
@@ -241,6 +224,7 @@ namespace Lidgren.Network.ContractCommunication
                         PendingAndLoggedInUsers[connection].LoggedInTime = DateTime.UtcNow;
                    }
                    AuthenticationResults.Add(new Tuple<AuthenticationResult, string>(authentication, user));
+                   NetConnector.Recycle(msg);
                });
             AddRunningTask(authTask);
         }
