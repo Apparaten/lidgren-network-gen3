@@ -62,7 +62,6 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Encryption\DiffieHellman.cs" />
     <Compile Include="Encryption\NetAESEncryption.cs">
       <SubType>Code</SubType>
     </Compile>
@@ -75,7 +74,7 @@
     <Compile Include="Encryption\NetRC2Encryption.cs">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="Encryption\NetRsaTripleDesEncryption.cs" />
+    <Compile Include="Encryption\NetTokenizedTripleDesEncryption.cs" />
     <Compile Include="Encryption\NetTripleDESEncryption.cs">
       <SubType>Code</SubType>
     </Compile>
