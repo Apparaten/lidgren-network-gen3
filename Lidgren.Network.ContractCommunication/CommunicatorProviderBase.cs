@@ -191,13 +191,24 @@ namespace Lidgren.Network.ContractCommunication
         }
         protected virtual async void ConnectionApproval(NetIncomingMessage msg)
         {
-            var token = msg.ReadString();
-            var tripleDesInformation = await Authenticator.GetKeyFromToken(token);
-            ((ServerTripleDesNetEncryptor)NetEncryptor).ImportKeyForConnection(msg.SenderConnection,tripleDesInformation.Key,tripleDesInformation.Iv);
-            ((ServerTripleDesNetEncryptor)NetEncryptor).Decrypt(msg);
             var connection = msg.SenderConnection;
-            var user = msg.ReadString().ToLower();
-            var password = msg.ReadString();
+            var user = "";
+            var password = "";
+            try
+            {
+                var token = msg.ReadString();
+                var tripleDesInformation = await Authenticator.GetKeyFromToken(token);
+                ((ServerTripleDesNetEncryptor)NetEncryptor).ImportKeyForConnection(msg.SenderConnection, tripleDesInformation.Key, tripleDesInformation.Iv);
+                ((ServerTripleDesNetEncryptor)NetEncryptor).Decrypt(msg);
+                
+                user = msg.ReadString().ToLower();
+                password = msg.ReadString();
+            }
+            catch (Exception e)
+            {
+                Log(e);
+            }
+            
             if (PendingAndLoggedInUsers.Values.Any(c => c.UserName == user))
             {
                 AuthenticationResults.Add(new Tuple<AuthenticationResult, string>(
