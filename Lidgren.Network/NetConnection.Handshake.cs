@@ -228,34 +228,36 @@ namespace Lidgren.Network
 		/// <summary>
 		/// Approves this connection; sending a connection response to the remote host
 		/// </summary>
-		public void Approve()
+		public bool Approve()
 		{
 			if (m_status != NetConnectionStatus.RespondedAwaitingApproval)
 			{
 				m_peer.LogWarning("Approve() called in wrong status; expected RespondedAwaitingApproval; got " + m_status);
-				return;
+				return false;
 			}
 
 			m_localHailMessage = null;
 			m_handshakeAttempts = 0;
 			SendConnectResponse(NetTime.Now, false);
+		    return true;
 		}
 
 		/// <summary>
 		/// Approves this connection; sending a connection response to the remote host
 		/// </summary>
 		/// <param name="localHail">The local hail message that will be set as RemoteHailMessage on the remote host</param>
-		public void Approve(NetOutgoingMessage localHail)
+		public bool Approve(NetOutgoingMessage localHail)
 		{
 			if (m_status != NetConnectionStatus.RespondedAwaitingApproval)
 			{
 				m_peer.LogWarning("Approve() called in wrong status; expected RespondedAwaitingApproval; got " + m_status);
-				return;
+				return false;
 			}
 
 			m_localHailMessage = localHail;
 			m_handshakeAttempts = 0;
 			SendConnectResponse(NetTime.Now, false);
+		    return true;
 		}
 
 		/// <summary>

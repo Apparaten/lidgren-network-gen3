@@ -117,8 +117,15 @@ namespace Lidgren.Network.ContractCommunication
                 {
                     if (result.Success)
                     {
-                        result.Connection.Approve();
-                        OnAuthenticationApproved(result, user);
+                        if (result.Connection.Approve())
+                        {
+                            OnAuthenticationApproved(result, user);
+                        }
+                        else
+                        {
+                            //The request probably took too long
+                            OnAuthenticationDenied(result, user);
+                        }
                     }
                     else
                     {
@@ -207,6 +214,9 @@ namespace Lidgren.Network.ContractCommunication
             catch (Exception e)
             {
                 Log(e);
+                connection.Deny(NetConnectionResult.Unknown);
+                NetConnector.Recycle(msg);
+                return;
             }
             
             if (PendingAndLoggedInUsers.Values.Any(c => c.UserName == user))
@@ -251,7 +261,10 @@ namespace Lidgren.Network.ContractCommunication
         }
         protected virtual void OnAuthenticationDenied(AuthenticationResult authenticationResult, string user)
         {
-            PendingAndLoggedInUsers.Remove(authenticationResult.Connection);
+            if (PendingAndLoggedInUsers.ContainsKey(authenticationResult.Connection))
+            {
+                PendingAndLoggedInUsers.Remove(authenticationResult.Connection);
+            }
         }
         protected void DoForUsers(Func<TAuthenticationUser, bool> predicate, Action<NetConnection, TAuthenticationUser> onConnectionAction)
         {
